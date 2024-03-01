@@ -1,0 +1,8 @@
+# Folder
+build
+dist
+__pycache__/
+# Scripts
+UI_C.py
+# Icon
+icon_app.ico
