@@ -1,8 +1,7 @@
-from asyncio import sleep
+from keyboard import press, release
 from pyautogui import mouseUp, mouseDown
-from pyautogui import keyUp, keyDown
 from pyautogui import PyAutoGUIException
-from pynput.keyboard import Listener, KeyCode
+from pynput.keyboard import Listener, KeyCode, HotKey
 
 
 class MouseControl:
@@ -16,14 +15,14 @@ class MouseControl:
         try:
             mouseDown(button=self.btn_click, duration=self.duration)
         except PyAutoGUIException:
-            keyDown(key=self.btn_click)
+            press(self.btn_click)
 
     def stop_mouse_down(self):
         self.mouse_pressed = False
         try:
             mouseUp(button=self.btn_click, duration=self.duration)
         except PyAutoGUIException:
-            keyUp(key=self.btn_click)
+            release(self.btn_click)
 
     def start(self):
         if self.mouse_pressed is True:
@@ -34,6 +33,9 @@ class MouseControl:
 
 async def start_one_key(start_key, stop_key, button, duration: float = 0.0):
     global listener, app
+
+    if duration == "":
+        duration = 0.0
 
     app = MouseControl(button, duration)
 
@@ -48,27 +50,21 @@ async def start_one_key(start_key, stop_key, button, duration: float = 0.0):
         listener.join()
 
 
-async def start_two_keys(start_key, start_two_key, stop_key):
-    global listener
+async def start_two_keys(start_key, start_two_key, stop_key, button, duration: float = 0.0):
+    global listener, app
 
-    app = MouseControl()
+    if duration == "":
+        duration = 0.0
 
-    def on_press(key):
-        if key == KeyCode(char=start_key):
-            count = 0
-            while count < 5:
-                if key == KeyCode(char=start_two_key):
-                    app.start()
-                count += 5
-                sleep(1)
-        elif key == KeyCode(char=stop_key):
-            app.stop_mouse_down()
-            listener.stop()
+    app = MouseControl(button, duration)
 
-    def on_release(key):
-        print("Key on_release", key)
+    hotkey = HotKey((HotKey.parse(f"<{start_key}>+{start_two_key}")),
+                    on_activate=app.start)
 
-    with Listener(on_press=on_press, on_release=on_release) as listener:
+    def on_press(f):
+        return lambda k: f(listener.canonical(k))
+
+    with Listener(on_press=on_press(hotkey.press), on_release=on_press(hotkey.release)) as listener:
         listener.join()
 
 

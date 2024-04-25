@@ -1,4 +1,5 @@
 import asyncio
+from keyboard import press, release
 from pyautogui import click, press
 from pyautogui import PyAutoGUIException
 from pynput.keyboard import Listener, KeyCode, HotKey
@@ -32,13 +33,22 @@ class AutoClicker(Thread):
                 try:
                     click(button=self.btn_click, interval=self.interval, duration=self.duration)
                 except PyAutoGUIException:
-                    press(self.btn_click, interval=self.interval)
+                    press(self.btn_click)
                 sleep(0.1)
+                release(self.btn_click)
             sleep(self.delay)
 
 
 async def start_one_key(start_key, stop_key, button, delay=0.5, interval=0.0, duration=0.0):
     global listener, app
+
+    if delay == "":
+        delay = 0.5
+    if interval == "":
+        interval = 0.0
+    if duration == "":
+        duration = 0.0
+
     app = AutoClicker(button, delay, interval, duration)
     app.start()
 
@@ -56,26 +66,33 @@ async def start_one_key(start_key, stop_key, button, delay=0.5, interval=0.0, du
         listener.join()
 
 
-async def start_two_keys(start_key, start_two_key, stop_key):
-    global listener
+async def start_two_keys(start_key, start_two_key, stop_key, button, delay=0.5, interval=0.0, duration=0.0):
+    global listener, app
+
+    if delay == "":
+        delay = 0.5
+    if interval == "":
+        interval = 0.0
+    if duration == "":
+        duration = 0.0
+
+    app = AutoClicker(button, delay, interval, duration)
     app.start()
+    cluck = False
 
     def on_active():
-        print("Active")
+        if cluck:
+            app.start_clicking()
+        else:
+            app.stop_clicking()
 
-    hotkey = HotKey(HotKey.parse("<shift>+q"), on_activate=on_active)
+    hotkey = HotKey((HotKey.parse(f"<{start_key}>+{start_two_key}")),
+                    on_activate=on_active)
 
-    def on_press(key):
-        if hotkey.press:
-                if app.running:
-                    app.start_clicking()
-                else:
-                    app.stop_clicking()
-        elif key == KeyCode(char=stop_key):
-            app.exit()
-            listener.stop()
+    def on_press(f):
+        return lambda k: f(listener.canonical(k))
 
-    with Listener(on_press=on_press) as listener:
+    with Listener(on_press=on_press(hotkey.press), on_release=on_press(hotkey.release)) as listener:
         listener.join()
 
 

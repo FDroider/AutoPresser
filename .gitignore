@@ -3,6 +3,6 @@ build
 dist
 __pycache__/
 # Scripts
-UI_C.py
+test.py
 # Icon
 icon_app.ico

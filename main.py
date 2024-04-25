@@ -1,6 +1,6 @@
 from flet import (Page, Text, ThemeMode, CrossAxisAlignment,
-                  Banner, colors, Icon, icons, FilledTonalButton, app, AppView)
-from UI import MainScreen
+                  Banner, colors, Icon, icons, FilledTonalButton, app)
+from Ui import MainScreen
 from json import loads
 
 
@@ -43,4 +43,4 @@ def main(page: Page):
 
 
 if __name__ == "__main__":
-    app(target=main, view=AppView.FLET_APP_HIDDEN)
+    app(target=main)
