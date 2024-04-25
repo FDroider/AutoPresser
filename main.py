@@ -1,6 +1,6 @@
 from flet import (Page, Text, ThemeMode, CrossAxisAlignment,
                   Banner, colors, Icon, icons, FilledTonalButton, app)
-from Ui import MainScreen
+from UI import MainScreen
 from json import loads
 
 
