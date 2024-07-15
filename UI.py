@@ -1,8 +1,7 @@
 from os.path import exists, dirname, join
 from os import mkdir, makedirs, listdir
 from PySide6 import QtWidgets, QtCore, QtGui
-import json
-
+from json import dumps, loads
 
 class MainScreen(QtWidgets.QWidget):
     __slots__ = ("tab_widget", "one_key_frame", "hot_key_frame", "group_btn",
@@ -33,11 +32,12 @@ class MainScreen(QtWidgets.QWidget):
         self.dropdown_btn.setObjectName("QComboBox")
         self.dropdown_btn.addItems(["Right", "Middle", "Left", "Key"])
         self.dropdown_btn.currentIndexChanged.connect(self.change_dropdown_btn)
-        self.dropdown_btn.setFixedSize(QtCore.QSize(100, 30))
+        self.dropdown_btn.setMaximumSize(QtCore.QSize(100, 30))
+        self.dropdown_btn.setToolTip("('Right', 'Middle', 'Left') - mouse button\n'Key' - keyboard button")
 
         self.entry = QtWidgets.QTextEdit()
         self.entry.setObjectName("QTextEdit")
-        self.entry.setFixedSize(QtCore.QSize(42, 30))
+        self.entry.setMinimumSize(QtCore.QSize(42, 30))
         self.entry.setVisible(False)
         self.entry.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
 
@@ -57,9 +57,147 @@ class MainScreen(QtWidgets.QWidget):
         self.btn_start.setObjectName("QPushButton")
         self.btn_start.clicked.connect(self.start_script)
 
-        if exists("DataSave/config_script.json"):
-            with open("DataSave/config_script.json", "r") as f:
-                settings = json.loads(f.read())
+        self.load_config("DataSave/config_script.json")
+
+        self.dropdown_script = QtWidgets.QComboBox()
+        self.dropdown_script.setObjectName("QComboBox")
+        self.dropdown_script.addItems(["Presser", "AutoClicker"])
+        self.dropdown_script.setCurrentIndex(0)
+
+        self.group_btn = QtWidgets.QHBoxLayout()
+        self.key_layout = QtWidgets.QHBoxLayout()
+        self.chose_script_l = QtWidgets.QHBoxLayout()
+        self.v_layout = QtWidgets.QVBoxLayout(self)
+
+        self.key_layout.addWidget(self.dropdown_btn)
+        self.key_layout.addWidget(self.entry)
+
+        self.group_btn.addWidget(self.btn_settings)
+        self.group_btn.addWidget(self.btn_save)
+        self.group_btn.addWidget(self.btn_save_presets)
+
+        self.chose_script_l.addWidget(self.btn_start)
+        self.chose_script_l.addWidget(self.dropdown_script)
+
+        self.v_layout.addWidget(self.tab_widget)
+        self.v_layout.addLayout(self.key_layout)
+        self.v_layout.addLayout(self.group_btn)
+        self.v_layout.addLayout(self.chose_script_l)
+
+        self.tab.setLayout(self.one_key_frame.layout())
+        self.tab_2.setLayout(self.hot_key_frame.layout())
+        self.setLayout(self.v_layout)
+
+    def get_options_one_key(self):
+        return self.master.settings.settings_script_frame.duration_one_key.toPlainText()
+
+    def get_options_hot_key(self):
+        return (self.master.settings.settings_script_frame.delay_hot_key.toPlainText(),
+                self.master.settings.settings_script_frame.interval_hot_key.toPlainText())
+
+    def open_settings(self):
+        self.master.stack_widget.setCurrentIndex(1)
+
+    def change_dropdown_btn(self):
+        if self.dropdown_btn.currentIndex() == 3:
+            self.entry.setVisible(True)
+        else:
+            self.entry.setVisible(False)
+
+    def start_script(self):
+        if self.dropdown_btn.currentIndex() == 3:
+            if self.entry.toPlainText().lower().replace(" ", "") == "":
+                return
+        if self.tab_widget.currentIndex() == 0:
+            if self.one_key_frame.entry.toPlainText().replace(" ", "") == "":
+                return
+        else:
+            if self.hot_key_frame.entry.toPlainText().replace(" ", "") == "":
+                return
+
+        self.dropdown_script.setDisabled(True)
+        self.starter_script = self.starter_script_thread(self, self.tab_widget.currentIndex(),
+                                                         self.dropdown_script.currentIndex())
+        self.starter_script.start()
+        self.dropdown_script.setDisabled(True)
+        self.tab_widget.setDisabled(True)
+        self.btn_start.setText("Stop script")
+        self.btn_start.clicked.disconnect()
+        self.btn_start.clicked.connect(self.stop_script)
+
+    def stop_script(self):
+        self.starter_script.stop()
+        self.tab_widget.setDisabled(False)
+        self.dropdown_script.setDisabled(False)
+        self.btn_start.setText("Start script")
+        self.btn_start.clicked.disconnect()
+        self.btn_start.clicked.connect(self.start_script)
+
+    def save_settings_script(self):
+        if not exists("DataSave"):
+            mkdir("DataSave")
+        settings = {"bind_one_key": self.one_key_frame.get_value_entry(),
+                    "bind_hot_key": f"{self.hot_key_frame.get_extra_key()}+{self.hot_key_frame.get_value_entry()}",
+                    "button": self.dropdown_btn.currentText(),
+                    "button_key": self.entry.toPlainText(),
+                    "one_key_duration": self.master.settings.settings_script_frame.duration_one_key.toPlainText(),
+                    "hot_key_delay": self.master.settings.settings_script_frame.delay_hot_key.toPlainText(),
+                    "hot_key_interval": self.master.settings.settings_script_frame.interval_hot_key.toPlainText()}
+        try:
+            with open("DataSave/config_script.json", "w") as f:
+                f.write(dumps(settings))
+            self.master.show_info("Success", "Settings saved")
+        except Exception as e:
+            self.master.show_err("Exception", str(e))
+
+    def open_save_dlg(self):
+        dlg = QtWidgets.QDialog()
+        dlg.setWindowTitle("Save preset")
+        layout = QtWidgets.QVBoxLayout()
+        filename = QtWidgets.QTextEdit()
+        filename.setPlaceholderText("File name")
+        filename.setFixedSize(QtCore.QSize(200, 30))
+        btn_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok |
+                                             QtWidgets.QDialogButtonBox.StandardButton.Cancel)
+        btn_box.accepted.connect(lambda: self.save_preset(filename.toPlainText()) if filename.toPlainText().replace(" ", "") != ""
+                                 else self.master.show_err("ValueError", "Enter file name!"))
+        btn_box.rejected.connect(dlg.close)
+        layout.addWidget(filename)
+        layout.addWidget(btn_box)
+        dlg.setLayout(layout)
+        dlg.exec()
+
+    def save_preset(self, filename):
+        if not exists("DataSave/Presets"):
+            makedirs("DataSave/Presets")
+        settings = {"bind_one_key": self.one_key_frame.get_value_entry(),
+                    "bind_hot_key": f"{self.hot_key_frame.get_extra_key()}+{self.hot_key_frame.get_value_entry()}",
+                    "button": self.dropdown_btn.currentText(),
+                    "button_key": self.entry.toPlainText(),
+                    "one_key_dur": self.master.settings.settings_script_frame.duration_one_key.toPlainText(),
+                    "hot_key_delay": self.master.settings.settings_script_frame.delay_hot_key.toPlainText(),
+                    "hot_key_interval": self.master.settings.settings_script_frame.interval_hot_key.toPlainText()}
+        try:
+            with open(f"DataSave/Presets/{filename}.json", "w") as f:
+                f.write(dumps(settings))
+            self.master.show_info("Success", "Settings saved")
+        except Exception as e:
+            self.master.show_err("Exception", str(e))
+        self.master.settings.settings_script_frame.update_list_presets()
+
+    def load_preset(self, filename):
+        if not exists(f"DataSave/Presets/{filename}.json"):
+            self.master.show_err("FileNotFound", f"'{filename}.json' not founded or removed")
+            return
+        try:
+            self.load_config(f"DataSave/Presets/{filename}.json")
+        except Exception as e:
+            self.master.show_err("Exception", str(e))
+
+    def load_config(self, path: str):
+        if exists(f"{path}"):
+            with open(f"{path}", "r") as f:
+                settings = loads(f.read())
                 for i in settings.items():
                     i = i[0]
                     try:
@@ -101,164 +239,19 @@ class MainScreen(QtWidgets.QWidget):
                     except Exception as e:
                        print(e)
 
-        self.dropdown_script = QtWidgets.QComboBox()
-        self.dropdown_script.setObjectName("QComboBox")
-        self.dropdown_script.addItems(["Presser", "AutoClicker"])
-        self.dropdown_script.setCurrentIndex(0)
-
-        self.group_btn = QtWidgets.QHBoxLayout()
-        self.key_layout = QtWidgets.QHBoxLayout()
-        self.chose_script_l = QtWidgets.QHBoxLayout()
-        self.v_layout = QtWidgets.QVBoxLayout(self)
-
-        self.key_layout.addWidget(self.dropdown_btn)
-        self.key_layout.addWidget(self.entry)
-
-        self.group_btn.addWidget(self.btn_settings)
-        self.group_btn.addWidget(self.btn_save)
-        self.group_btn.addWidget(self.btn_save_presets)
-
-        self.chose_script_l.addWidget(self.btn_start)
-        self.chose_script_l.addWidget(self.dropdown_script)
-
-        self.v_layout.addWidget(self.tab_widget)
-        self.v_layout.addLayout(self.key_layout)
-        self.v_layout.addLayout(self.group_btn)
-        self.v_layout.addLayout(self.chose_script_l)
-
-        self.tab.setLayout(self.one_key_frame.layout())
-        self.tab_2.setLayout(self.hot_key_frame.layout())
-        self.setLayout(self.v_layout)
-
-    def get_options_one_key(self):
-        return self.master.settings.settings_script_frame.duration_one_key.toPlainText()
-
-    def get_options_how_key(self):
-        return self.master.settings.settings_script_frame.delay_hot_key.toPlainText()
-
-    def open_settings(self):
-        self.master.stack_widget.setCurrentIndex(1)
-
-    def change_dropdown_btn(self):
-        if self.dropdown_btn.currentIndex() == 3:
-            self.entry.setVisible(True)
-        else:
-            self.entry.setVisible(False)
-
-    def start_script(self):
-        if self.dropdown_btn.currentIndex() == 3:
-            if self.entry.toPlainText().lower().replace(" ", "") == "":
-                return
-        if self.dropdown_script.currentIndex() == 0:
-            if self.one_key_frame.entry.toPlainText().replace(" ", "") == "":
-                return
-        else:
-            if self.hot_key_frame.entry.toPlainText().replace(" ", "") == "":
-                return
-        self.dropdown_script.setDisabled(True)
-        self.starter_script = self.starter_script_thread(self, self.tab_widget.currentIndex(),
-                                                         self.dropdown_script.currentIndex())
-        self.starter_script.start()
-        self.dropdown_script.setDisabled(True)
-        self.tab_widget.setDisabled(True)
-        self.btn_start.setText("Stop script")
-        self.btn_start.clicked.disconnect()
-        self.btn_start.clicked.connect(self.stop_script)
-
-    def stop_script(self):
-        self.starter_script.stop()
-        self.tab_widget.setDisabled(False)
-        self.dropdown_script.setDisabled(False)
-        self.btn_start.setText("Start script")
-        self.btn_start.clicked.disconnect()
-        self.btn_start.clicked.connect(self.start_script)
-
-    def save_settings_script(self):
-        if not exists("DataSave"):
-            mkdir("DataSave")
-        settings = {"bind_one_key": self.one_key_frame.get_value_entry(),
-                    "bind_hot_key": f"{self.hot_key_frame.get_extra_key()}+{self.hot_key_frame.get_value_entry()}",
-                    "button": self.dropdown_btn.currentText(),
-                    "button_key": self.entry.toPlainText(),
-                    "one_key_duration": self.master.settings.settings_script_frame.duration_one_key.toPlainText(),
-                    "hot_key_delay": self.master.settings.settings_script_frame.delay_hot_key.toPlainText(),
-                    "hot_key_interval": self.master.settings.settings_script_frame.interval_hot_key.toPlainText()}
-        try:
-            with open("DataSave/config_script.json", "w") as f:
-                f.write(json.dumps(settings))
-            self.master.show_info("Success", "Settings saved")
-        except Exception as e:
-            self.master.show_err("Exception", str(e))
-
-    def open_save_dlg(self):
-        dlg = QtWidgets.QDialog()
-        dlg.setWindowTitle("Save preset")
-        layout = QtWidgets.QVBoxLayout()
-        filename = QtWidgets.QTextEdit()
-        filename.setPlaceholderText("File name")
-        filename.setFixedSize(QtCore.QSize(200, 30))
-        btn_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok |
-                                             QtWidgets.QDialogButtonBox.StandardButton.Cancel)
-        btn_box.accepted.connect(lambda: self.save_preset(filename.toPlainText()) if filename.toPlainText().replace(" ", "") != ""
-                                 else self.master.show_err("ValueError", "Enter file name!"))
-        btn_box.rejected.connect(dlg.close)
-        layout.addWidget(filename)
-        layout.addWidget(btn_box)
-        dlg.setLayout(layout)
-        dlg.exec()
-
-    def save_preset(self, filename):
-        if not exists("DataSave/Presets"):
-            makedirs("DataSave/Presets")
-        settings = {"bind_one_key": self.one_key_frame.get_value_entry(),
-                    "bind_hot_key": f"{self.hot_key_frame.get_extra_key()}+{self.hot_key_frame.get_value_entry()}",
-                    "button": self.dropdown_btn.currentText(),
-                    "button_key": self.entry.toPlainText(),
-                    "one_key_dur": self.master.settings.settings_script_frame.duration_one_key.toPlainText(),
-                    "hot_key_delay": self.master.settings.settings_script_frame.delay_hot_key.toPlainText(),
-                    "hot_key_interval": self.master.settings.settings_script_frame.interval_hot_key.toPlainText()}
-        try:
-            with open(f"DataSave/Presets/{filename}.json", "w") as f:
-                f.write(json.dumps(settings))
-            self.master.show_info("Success", "Settings saved")
-        except Exception as e:
-            self.master.show_err("Exception", str(e))
-        self.master.settings.settings_script_frame.update_list_presets()
-
-    def load_preset(self, filename):
-        if not exists(f"DataSave/Presets/{filename}.json"):
-            self.master.show_err("FileNotFound", f"'{filename}.json' not founded or removed")
-            return
-        try:
-            with open(f"DataSave/Presets/{filename}.json", "r") as f:
-                settings = json.loads(f.read())
-                self.one_key_frame.entry.setText(settings["bind_one_key"])
-                self.one_key_frame.entry.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-                self.hot_key_frame.dropdown.setCurrentText(settings["bind_hot_key"][:-2])
-                self.hot_key_frame.entry.setText(settings["bind_hot_key"][-1])
-                self.hot_key_frame.entry.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-                self.master.settings.settings_script_frame.duration_one_key.setText(settings["one_key_dur"])
-                self.master.settings.settings_script_frame.duration_one_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-                self.master.settings.settings_script_frame.delay_hot_key.setText(settings["hot_key_delay"])
-                self.master.settings.settings_script_frame.delay_hot_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-                self.master.settings.settings_script_frame.interval_hot_key.setText(settings["hot_key_interval"])
-                self.master.settings.settings_script_frame.interval_hot_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-                self.dropdown_btn.setCurrentText(settings["button"])
-                self.entry.setText(settings["button_key"])
-                self.entry.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-        except Exception as e:
-            self.master.show_err("Exception", str(e))
-
 
 class OneKeyFrame(QtWidgets.QFrame):
+    __slots__ = ("v_layout", "h_layout")
+
     def __init__(self):
         super().__init__()
         self.lb = QtWidgets.QLabel("Enter activation key")
         self.lb.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
         self.entry = QtWidgets.QTextEdit()
+        self.entry.textChanged.connect(self.text_change)
         self.entry.setStyleSheet("""*:focus {border: 1px solid rgba(255, 255, 255, 70);}""")
         self.entry.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-        self.entry.setFixedSize(QtCore.QSize(42, 30))
+        self.entry.setMinimumSize(QtCore.QSize(42, 30))
         self.v_layout = QtWidgets.QVBoxLayout(self)
         self.h_layout = QtWidgets.QHBoxLayout()
         self.v_layout.addWidget(self.lb)
@@ -268,8 +261,15 @@ class OneKeyFrame(QtWidgets.QFrame):
     def get_value_entry(self):
         return self.entry.toPlainText()
 
+    def text_change(self):
+        if len(self.entry.toPlainText()) > 1:
+            self.entry.setText(self.entry.toPlainText()[1])
+            self.entry.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
+
 
 class HotKeyFrame(QtWidgets.QFrame):
+    __slots__ = ("v_layout", "h_layout")
+
     def __init__(self):
         super().__init__()
         self.setVisible(False)
@@ -279,11 +279,12 @@ class HotKeyFrame(QtWidgets.QFrame):
         self.dropdown = QtWidgets.QComboBox()
         self.dropdown.addItems(["Ctrl", "Alt", "Shift"])
         self.dropdown.setCurrentIndex(0)
-        self.dropdown.setFixedSize(QtCore.QSize(100, 20))
+        self.dropdown.setMaximumSize(QtCore.QSize(100, 30))
         self.entry = QtWidgets.QTextEdit()
+        self.entry.textChanged.connect(self.text_change)
         self.entry.setStyleSheet("""*:focus {border: 1px solid rgba(255, 255, 255, 70);}""")
         self.entry.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-        self.entry.setFixedSize(QtCore.QSize(42, 30))
+        self.entry.setMinimumSize(QtCore.QSize(42, 30))
         self.v_layout = QtWidgets.QVBoxLayout(self)
         self.h_layout = QtWidgets.QHBoxLayout()
         self.v_layout.addWidget(self.lb)
@@ -297,8 +298,14 @@ class HotKeyFrame(QtWidgets.QFrame):
     def get_value_entry(self):
         return self.entry.toPlainText()
 
+    def text_change(self):
+        if len(self.entry.toPlainText()) > 1:
+            self.entry.setText(self.entry.toPlainText()[1])
+            self.entry.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
+
 
 class SettingsScripFrame(QtWidgets.QFrame):
+    __slots__ = ("h_one_key_l", "h_hot_key_l", "h_presets_l", "v_layout")
     def __init__(self, master):
         super().__init__()
         self.master = master
@@ -307,18 +314,23 @@ class SettingsScripFrame(QtWidgets.QFrame):
         self.duration_one_key = QtWidgets.QTextEdit()
         self.duration_one_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
         self.duration_one_key.setPlaceholderText("Duration")
+        self.duration_one_key.setToolTip("Duration")
+        self.duration_one_key.setMinimumSize(QtCore.QSize(42, 30))
         self.lb_hot_key = QtWidgets.QLabel("Settings for hot key option")
         self.delay_hot_key = QtWidgets.QTextEdit()
         self.delay_hot_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
         self.delay_hot_key.setPlaceholderText("Delay")
         self.delay_hot_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
+        self.delay_hot_key.setToolTip("Delay")
+        self.delay_hot_key.setMinimumSize(QtCore.QSize(42, 30))
         self.interval_hot_key = QtWidgets.QTextEdit()
         self.interval_hot_key.setPlaceholderText("Interval")
         self.interval_hot_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
+        self.interval_hot_key.setToolTip("Interval")
+        self.interval_hot_key.setMinimumSize(QtCore.QSize(42, 30))
         self.dropdown_presets = QtWidgets.QComboBox()
         self.dropdown_presets.addItems(self.show_presets())
-        self.btn_upd = QtWidgets.QPushButton("Update")
-        self.btn_upd.clicked.connect(self.update_list_presets)
+        self.dropdown_presets.setToolTip("Preset")
         self.btn_select = QtWidgets.QPushButton("Select")
         self.btn_select.clicked.connect(lambda: self.master.main_screen.load_preset(self.dropdown_presets.currentText()))
 
@@ -334,7 +346,6 @@ class SettingsScripFrame(QtWidgets.QFrame):
         self.h_presets_l = QtWidgets.QHBoxLayout()
 
         self.h_presets_l.addWidget(self.dropdown_presets)
-        self.h_presets_l.addWidget(self.btn_upd)
         self.h_presets_l.addWidget(self.btn_select)
 
         self.v_layout = QtWidgets.QVBoxLayout(self)
@@ -362,12 +373,11 @@ class SettingsScripFrame(QtWidgets.QFrame):
 
 
 class SettingsAppFrame(QtWidgets.QFrame):
+    __slots__ = ("v_layout",)
+
     def __init__(self, master):
         super().__init__()
         self.master = master
-        self.lb_lang = QtWidgets.QLabel("Language")
-        self.lb_lang.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-        self.dropdown_lang = QtWidgets.QComboBox()
         self.lb_text_size = QtWidgets.QLabel("Text size")
         self.lb_text_size.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
         self.slider = QtWidgets.QSlider(QtGui.Qt.Orientation.Horizontal)
@@ -379,18 +389,19 @@ class SettingsAppFrame(QtWidgets.QFrame):
 
         self.v_layout = QtWidgets.QVBoxLayout(self)
 
-        self.v_layout.addWidget(self.lb_lang)
-        self.v_layout.addWidget(self.dropdown_lang)
         self.v_layout.addWidget(self.lb_text_size)
         self.v_layout.addWidget(self.slider)
 
     def change_size(self):
-        self.lb_text_size.setStyleSheet(""".QLabel {font-size: %spx;}""" % self.slider.value())
+        self.lb_text_size.setStyleSheet("""QLabel {font-size: %spx;}""" % self.slider.value())
         self.slider.setToolTip(f"{self.slider.value()}px")
         self.master.set_text_size(self.slider.value())
 
 
 class Settings(QtWidgets.QWidget):
+    __slots__ = ("tab_widget", "settings_script_frame", "settings_app_frame",
+                 "settings_layout", "btn_layout")
+
     def __init__(self, master):
         super().__init__()
         self.master = master
@@ -434,7 +445,7 @@ class Settings(QtWidgets.QWidget):
         if not exists("DataSave"):
             mkdir("DataSave")
         with open("DataSave/config.json", "w") as f:
-            f.write(json.dumps(settings))
+            f.write(dumps(settings))
         self.master.show_info("Success", "Settings saved")
 
     def get_slider_value(self):

@@ -6,12 +6,12 @@ from pyautogui import PyAutoGUIException
 
 
 class MouseControl:
-    def __init__(self, button: str, duration: float):
+    def __init__(self, button: str, duration: float = 0.0):
         super().__init__()
         self.btn_click = button.lower()
         if button.lower() in ("shift", "alt", "ctrl"):
             self.btn_click = f"{button.lower()}left"
-        self.duration = float(duration)
+        self.duration = duration
         self.mouse_pressed = False
 
     def start_mouse_down(self):
@@ -42,13 +42,10 @@ class MouseControl:
             self.start_mouse_down()
 
 
-async def start_one_key(start_key, stop_key, button, *args):
+async def start_one_key(start_key, button, *args):
     global app, listener
 
-    duration = args[0]
-
-    if duration == "" or float(duration) < 0.0:
-        duration = 0.0
+    duration = 0.0 if args[0] == "" or float(args[0]) < 0.0 else float(args[0])
 
     app = MouseControl(button, duration)
 
@@ -60,13 +57,10 @@ async def start_one_key(start_key, stop_key, button, *args):
         listener.join()
 
 
-async def start_two_keys(start_key, start_two_key, stop_key, button, *args):
+async def start_two_keys(start_key, start_two_key, button, *args):
     global app, listener
 
-    duration = args[0]
-
-    if duration == "" or float(duration) < 0.0:
-        duration = 0.0
+    duration = 0.0 if args[0][0] == "" or float(args[0][0]) < 0.0 else float(args[0][0])
 
     app = MouseControl(button, duration)
 

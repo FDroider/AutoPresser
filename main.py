@@ -1,16 +1,20 @@
-import asyncio
-import sys
-import auto_clicker
-import press_click
-import json
+from asyncio import new_event_loop, set_event_loop
+from asyncio import run
+from json import loads
 from UI import MainScreen, Settings
 from UI import OneKeyFrame, HotKeyFrame
 from os.path import exists
-from PySide6 import QtWidgets, QtCore, QtGui
+from PySide6 import QtWidgets
+from PySide6.QtCore import QThread, QSize
 from PySide6.QtWidgets import QApplication, QMainWindow
+import sys
+import auto_clicker
+import press_click
+
 
 try:
     from ctypes import windll
+
     myappid = 'droid_android.auto_presser.1_5_0'
     windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 except ImportError:
@@ -27,7 +31,7 @@ class MainWindow(QMainWindow):
         if exists("DataSave/config.json"):
             try:
                 with open("DataSave/config.json", "r") as f:
-                    settings = json.loads(f.read())
+                    settings = loads(f.read())
                     self.text_size = settings["text_size"]
             except Exception as e:
                 self.show_err("Exception", f"Error load save:\n{str(e)}")
@@ -86,64 +90,66 @@ class MainWindow(QMainWindow):
             if main_widget is None:
                 main_widget = item.layout().itemAt(i)
             if isinstance(main_widget, MainScreen) or isinstance(main_widget, Settings):
-                for i in range(main_widget.layout().count()):
-                    widget = main_widget.layout().itemAt(i).widget()
-                    if widget is None:
-                        widget = main_widget.layout().itemAt(i)
-                    if isinstance(widget, QtWidgets.QTabWidget):
-                        widget.setStyleSheet("""QTabWidget {font-size: %spx;}
-                                                QTabWidget::tab-bar {alignment: center;}""" % text_size)
-                        widget.widget(0).setStyleSheet("""* {font-size: %spx;}""" % text_size)
-                        widget.widget(1).setStyleSheet("""* {font-size: %spx;}""" % text_size)
-                        if isinstance(main_widget, Settings):
-                            self._change_size_text_item(text_size, widget.widget(0))
-                            self._change_size_text_item(text_size, widget.widget(1))
-                        continue
-                    elif isinstance(widget, QtWidgets.QVBoxLayout) or isinstance(widget, QtWidgets.QHBoxLayout):
-                        self._change_size_text_item(text_size, widget)
-                        continue
-                    widget.setStyleSheet("""%s {font-size: %spx;}""" % (widget.objectName(), text_size))
+                self._change_size_text_item(text_size, main_widget)
+            if isinstance(main_widget, QtWidgets.QTabWidget):
+                main_widget.setStyleSheet("""QTabWidget {font-size: %spx;}
+                                             QTabWidget::tab-bar {alignment: center;}
+                                             QTabWidget::pane {border: 1px solid rgba(255, 255, 255, 20); 
+                                             border-radius: 10px; background-color: #3b3b3b}
+                                             QTabBar::tab {background-color: #575656; 
+                                             border: 1px solid rgba(255, 255, 255, 20); 
+                                             border-top-left-radius: 5px; border-top-right-radius: 5px; 
+                                             padding: 5px; margin-bottom: 5px;}
+                                             QTabBar::tab:selected {background-color: #3b3b3b; margin-bottom: 0px;}
+                                             # background-color: #435473;""" % text_size)
+                main_widget.widget(0).setStyleSheet("""* {font-size: %spx;}""" % text_size)
+                main_widget.widget(1).setStyleSheet("""* {font-size: %spx;}""" % text_size)
+                self._change_size_text_item(text_size, main_widget.widget(0))
+                self._change_size_text_item(text_size, main_widget.widget(1))
             elif isinstance(main_widget, OneKeyFrame) or isinstance(main_widget, HotKeyFrame):
                 self._change_size_text_item(text_size, main_widget)
-            elif isinstance(main_widget, QtWidgets.QVBoxLayout) or isinstance(main_widget, QtWidgets.QHBoxLayout):
+            elif isinstance(main_widget, QtWidgets.QVBoxLayout) or isinstance(main_widget, QtWidgets.QHBoxLayout)\
+                    or isinstance(main_widget, QtWidgets.QFormLayout):
                 self._change_size_text_item(text_size, main_widget)
-                continue
             elif isinstance(main_widget, QtWidgets.QTextEdit):
-                main_widget.setFixedSize(QtCore.QSize(self.settings.get_slider_value() * 3.5,
-                                                      int(self.settings.get_slider_value() * 2.5)))
-                main_widget.setStyleSheet("""* {font-size: %spx; border: 1px solid; border-radius: 50px; 
-                                                background-color: palette(base);}
+                main_widget.setMaximumSize(QSize(self.settings.get_slider_value() * 3.5,
+                                                 int((self.settings.get_slider_value() / 2) * 4.5)))
+                main_widget.setStyleSheet("""* {font-size: %spx;
+                                                border: 1.8px solid black;
+                                                border-radius: 5px;
+                                                color: #f5f5f5;}
                                              *:focus {border: 1px solid rgba(255, 255, 255, 70);}""" % text_size)
+
+                format_t = main_widget.document().rootFrame().frameFormat()
+                format_t.setTopMargin(self.get_text_size() / 3)
+                main_widget.document().rootFrame().setFrameFormat(format_t)
             else:
                 main_widget.setStyleSheet("""* {font-size: %spx;}""" % text_size)
-
-
-class InfoDialog(QtWidgets.QMessageBox):
-    ...
+        self.resize(self.get_text_size() * 7.5, self.get_text_size() * 17.5)
 
 
 class AlertDialog(QtWidgets.QMessageBox):
     ...
 
 
-class ScriptStartThread(QtCore.QThread):
+class ScriptStartThread(QThread):
     def __init__(self, parent, type_key: int, script: int):
         super().__init__()
         self.parent = parent
         self.type_key = type_key
         self.script = script
         self.script_name = press_click if self.script == 0 else auto_clicker
-        self.loop_script = asyncio.new_event_loop()
+        self.loop_script = new_event_loop()
 
     def start_one_key(self, script_name):
         if self.parent.dropdown_btn.currentIndex() == 3:
             self.loop_script.run_until_complete(
-                script_name.start_one_key(self.parent.one_key_frame.entry.toPlainText(), None,
+                script_name.start_one_key(self.parent.one_key_frame.entry.toPlainText(),
                                           self.parent.entry.toPlainText().lower(),
                                           self.parent.get_options_one_key()))
         else:
             self.loop_script.run_until_complete(
-                script_name.start_one_key(self.parent.one_key_frame.entry.toPlainText(), None,
+                script_name.start_one_key(self.parent.one_key_frame.entry.toPlainText(),
                                           self.parent.dropdown_btn.currentText().lower(),
                                           self.parent.get_options_one_key()))
 
@@ -151,31 +157,25 @@ class ScriptStartThread(QtCore.QThread):
         if self.parent.dropdown_btn.currentIndex() == 3:
             self.loop_script.run_until_complete(
                 script_name.start_two_keys(self.parent.hot_key_frame.dropdown.currentText().lower(),
-                                           self.parent.hot_key_frame.entry.toPlainText().lower(), None,
+                                           self.parent.hot_key_frame.entry.toPlainText().lower(),
                                            self.parent.entry.toPlainText().lower(),
                                            self.parent.get_options_hot_key()))
         else:
             self.loop_script.run_until_complete(
                 script_name.start_two_keys(self.parent.hot_key_frame.dropdown.currentText().lower(),
-                                           self.parent.hot_key_frame.entry.toPlainText().lower(), None,
+                                           self.parent.hot_key_frame.entry.toPlainText().lower(),
                                            self.parent.dropdown_btn.currentText().lower(),
                                            self.parent.get_options_hot_key()))
 
     def run(self):
-        asyncio.set_event_loop(self.loop_script)
-        if self.script == 0:
-            if self.type_key == 0:
-                self.start_one_key(self.script_name)
-            else:
-                self.start_two_key(self.script_name)
+        set_event_loop(self.loop_script)
+        if self.type_key == 0:
+            self.start_one_key(self.script_name)
         else:
-            if self.type_key == 0:
-                self.start_one_key(self.script_name)
-            else:
-                self.start_two_key(self.script_name)
+            self.start_two_key(self.script_name)
 
     def stop(self):
-        asyncio.run(self.script_name.stop())
+        run(self.script_name.stop())
         self.loop_script.stop()
         self.terminate()
 

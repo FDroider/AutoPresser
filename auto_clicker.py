@@ -34,13 +34,10 @@ class AutoClicker(QThread):
             sleep(self.delay)
 
 
-async def start_one_key(start_key, stop_key, button, *args):
+async def start_one_key(start_key, button, *args):
     global app, listener
 
-    delay = args[0]
-
-    if delay == "" or float(delay) < 0:
-        delay = 0.5
+    delay = 0.0 if args[0] == "" or float(args[0]) < 0.0 else float(args[0])
 
     app = AutoClicker(button, delay, 0)
     app.start()
@@ -51,28 +48,23 @@ async def start_one_key(start_key, stop_key, button, *args):
                 app.stop_clicking()
             else:
                 app.start_clicking()
-        # elif key == KeyCode(char=stop_key):
-        #     app.exit()
-        #     listener.stop()
 
     with Listener(on_press=on_press) as listener:
         listener.join()
 
 
-async def start_two_keys(start_key, start_two_key, stop_key, button, *args):
+async def start_two_keys(start_key, start_two_key, button, *args):
     global app, listener
 
-    delay = args[0]
+    delay = 0.0 if args[0][0] == "" or float(args[0][0]) < 0.0 else float(args[0][0])
+    interval = 0.0 if args[0][1] == "" or float(args[0][1]) < 0.0 else float(args[0][1])
 
-    if delay == "" or float(delay) < 0:
-        delay = 0.5
-
-    app = AutoClicker(button, delay, 0)
+    app = AutoClicker(button, delay, interval)
     app.start()
-    cluck = False
+    click = False
 
     def on_active():
-        if cluck:
+        if click:
             app.start_clicking()
         else:
             app.stop_clicking()
