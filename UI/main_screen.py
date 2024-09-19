@@ -1,5 +1,5 @@
 from os.path import exists, dirname, join
-from os import mkdir, makedirs, listdir
+from os import mkdir, makedirs
 from PySide6 import QtWidgets, QtCore, QtGui
 from json import dumps, loads
 
@@ -10,7 +10,6 @@ class MainScreen(QtWidgets.QWidget):
     def __init__(self, parent, starter_script):
         super().__init__(parent)
         basedir = dirname(__file__)
-        pixmapi = getattr(QtWidgets.QStyle, "SP_DialogSaveButton")
 
         self.master = parent
         self.starter_script_thread = starter_script
@@ -43,16 +42,16 @@ class MainScreen(QtWidgets.QWidget):
 
         self.btn_settings = QtWidgets.QPushButton("Settings")
         self.btn_settings.setObjectName("QPushButton")
-        self.btn_settings.setIcon(QtGui.QIcon(join(basedir, "771203.png")))
+        self.btn_settings.setIcon(QtGui.QIcon(join(basedir, "./../771203.png")))
         self.btn_settings.clicked.connect(self.open_settings)
         self.btn_save = QtWidgets.QPushButton("Save")
         self.btn_save.setObjectName("QPushButton")
-        self.btn_save.setIcon(QtGui.QIcon(self.style().standardIcon(pixmapi)))
+        self.btn_save.setIcon(QtGui.QIcon(join(basedir, "./../174314.png")))
         self.btn_save.clicked.connect(self.save_settings_script)
         self.btn_save_presets = QtWidgets.QPushButton("Save preset")
         self.btn_save_presets.clicked.connect(self.open_save_dlg)
         self.btn_save_presets.setObjectName("QPushButton")
-        self.btn_save_presets.setIcon(QtGui.QIcon(join(basedir, "10057635.png")))
+        self.btn_save_presets.setIcon(QtGui.QIcon(join(basedir, "./../10057635.png")))
         self.btn_start = QtWidgets.QPushButton("Start script")
         self.btn_start.setObjectName("QPushButton")
         self.btn_start.clicked.connect(self.start_script)
@@ -302,151 +301,3 @@ class HotKeyFrame(QtWidgets.QFrame):
         if len(self.entry.toPlainText()) > 1:
             self.entry.setText(self.entry.toPlainText()[1])
             self.entry.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-
-
-class SettingsScripFrame(QtWidgets.QFrame):
-    __slots__ = ("h_one_key_l", "h_hot_key_l", "h_presets_l", "v_layout")
-    def __init__(self, master):
-        super().__init__()
-        self.master = master
-
-        self.lb_one_key = QtWidgets.QLabel("Settings for one key option")
-        self.duration_one_key = QtWidgets.QTextEdit()
-        self.duration_one_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-        self.duration_one_key.setPlaceholderText("Duration")
-        self.duration_one_key.setToolTip("Duration")
-        self.duration_one_key.setMinimumSize(QtCore.QSize(42, 30))
-        self.lb_hot_key = QtWidgets.QLabel("Settings for hot key option")
-        self.delay_hot_key = QtWidgets.QTextEdit()
-        self.delay_hot_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-        self.delay_hot_key.setPlaceholderText("Delay")
-        self.delay_hot_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-        self.delay_hot_key.setToolTip("Delay")
-        self.delay_hot_key.setMinimumSize(QtCore.QSize(42, 30))
-        self.interval_hot_key = QtWidgets.QTextEdit()
-        self.interval_hot_key.setPlaceholderText("Interval")
-        self.interval_hot_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-        self.interval_hot_key.setToolTip("Interval")
-        self.interval_hot_key.setMinimumSize(QtCore.QSize(42, 30))
-        self.dropdown_presets = QtWidgets.QComboBox()
-        self.dropdown_presets.addItems(self.show_presets())
-        self.dropdown_presets.setToolTip("Preset")
-        self.btn_select = QtWidgets.QPushButton("Select")
-        self.btn_select.clicked.connect(lambda: self.master.main_screen.load_preset(self.dropdown_presets.currentText()))
-
-        self.h_one_key_l = QtWidgets.QHBoxLayout()
-
-        self.h_one_key_l.addWidget(self.duration_one_key)
-
-        self.h_hot_key_l = QtWidgets.QHBoxLayout()
-
-        self.h_hot_key_l.addWidget(self.delay_hot_key)
-        self.h_hot_key_l.addWidget(self.interval_hot_key)
-
-        self.h_presets_l = QtWidgets.QHBoxLayout()
-
-        self.h_presets_l.addWidget(self.dropdown_presets)
-        self.h_presets_l.addWidget(self.btn_select)
-
-        self.v_layout = QtWidgets.QVBoxLayout(self)
-
-        self.v_layout.addWidget(self.lb_one_key)
-        self.v_layout.addLayout(self.h_one_key_l)
-        self.v_layout.addWidget(self.lb_hot_key)
-        self.v_layout.addLayout(self.h_hot_key_l)
-        self.v_layout.addLayout(self.h_presets_l)
-
-    def show_presets(self):
-        presets = []
-        if not exists("DataSave/Presets"):
-            return ("None",)
-        for f in listdir("DataSave/Presets"):
-            if f.endswith(".json"):
-                presets.append(f[:-5])
-        if len(presets) < 1:
-            return ("None",)
-        return presets
-
-    def update_list_presets(self):
-        self.dropdown_presets.clear()
-        self.dropdown_presets.addItems(self.show_presets())
-
-
-class SettingsAppFrame(QtWidgets.QFrame):
-    __slots__ = ("v_layout",)
-
-    def __init__(self, master):
-        super().__init__()
-        self.master = master
-        self.lb_text_size = QtWidgets.QLabel("Text size")
-        self.lb_text_size.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-        self.slider = QtWidgets.QSlider(QtGui.Qt.Orientation.Horizontal)
-        self.slider.setValue(self.master.get_text_size())
-        self.slider.setMinimum(11)
-        self.slider.setMaximum(25)
-        self.slider.valueChanged.connect(self.change_size)
-        self.slider.setToolTip(f"{self.slider.value()}px")
-
-        self.v_layout = QtWidgets.QVBoxLayout(self)
-
-        self.v_layout.addWidget(self.lb_text_size)
-        self.v_layout.addWidget(self.slider)
-
-    def change_size(self):
-        self.lb_text_size.setStyleSheet("""QLabel {font-size: %spx;}""" % self.slider.value())
-        self.slider.setToolTip(f"{self.slider.value()}px")
-        self.master.set_text_size(self.slider.value())
-
-
-class Settings(QtWidgets.QWidget):
-    __slots__ = ("tab_widget", "settings_script_frame", "settings_app_frame",
-                 "settings_layout", "btn_layout")
-
-    def __init__(self, master):
-        super().__init__()
-        self.master = master
-        self.master.setWindowTitle("Settings")
-        self.tab_view = QtWidgets.QTabWidget()
-        self.tab_view.setObjectName("QTabWidget")
-        self.tab = QtWidgets.QWidget()
-        self.tab.setObjectName("QWidget")
-        self.tab_view.addTab(self.tab, "Settings script")
-        self.tab_2 = QtWidgets.QWidget()
-        self.tab_2.setObjectName("QWidget")
-        self.tab_view.addTab(self.tab_2, "Settings app")
-
-        self.btn_back = QtWidgets.QPushButton("Back")
-        self.btn_back.setObjectName("QPushButton")
-        self.btn_back.clicked.connect(self.back)
-        self.btn_save = QtWidgets.QPushButton("Save")
-        self.btn_save.setObjectName("QPushButton")
-        self.btn_save.clicked.connect(self.save_settings)
-
-        self.settings_script_frame = SettingsScripFrame(self.master)
-        self.settings_app_frame = SettingsAppFrame(self.master)
-
-        self.tab.setLayout(self.settings_script_frame.layout())
-        self.tab_2.setLayout(self.settings_app_frame.layout())
-
-        self.settings_layout = QtWidgets.QVBoxLayout(self)
-        self.btn_layout = QtWidgets.QHBoxLayout()
-
-        self.settings_layout.addWidget(self.tab_view)
-        self.btn_layout.addWidget(self.btn_back)
-        self.btn_layout.addWidget(self.btn_save)
-        self.settings_layout.addLayout(self.btn_layout)
-
-    def back(self):
-        self.master.stack_widget.setCurrentIndex(0)
-
-    def save_settings(self):
-        settings = {"lang_app": None,
-                    "text_size": self.settings_app_frame.slider.value()}
-        if not exists("DataSave"):
-            mkdir("DataSave")
-        with open("DataSave/config.json", "w") as f:
-            f.write(dumps(settings))
-        self.master.show_info("Success", "Settings saved")
-
-    def get_slider_value(self):
-        return self.settings_app_frame.slider.value()

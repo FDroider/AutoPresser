@@ -1,8 +1,8 @@
 from asyncio import new_event_loop, set_event_loop
 from asyncio import run
 from json import loads
-from UI import MainScreen, Settings
-from UI import OneKeyFrame, HotKeyFrame
+from UI.main_screen import MainScreen, OneKeyFrame, HotKeyFrame
+from UI.settings import Settings
 from os.path import exists
 from PySide6 import QtWidgets
 from PySide6.QtCore import QThread, QSize
@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QApplication, QMainWindow
 import sys
 import auto_clicker
 import press_click
+import qdarktheme
 
 
 try:
@@ -27,17 +28,23 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.text_size = 14
+        self.old_style = (app.palette(), app.styleSheet())
+        self.new_style = (qdarktheme.load_palette(), qdarktheme.load_stylesheet())
+        self.settings = Settings(self)
+        self.main_screen = MainScreen(self, ScriptStartThread)
 
         if exists("DataSave/config.json"):
             try:
                 with open("DataSave/config.json", "r") as f:
                     settings = loads(f.read())
                     self.text_size = settings["text_size"]
+                    self.settings.settings_app_frame.dropdown_style.setCurrentText(settings["style"])
+                    if settings["style"] in ("New version", "Old version"):
+                        self.setStyleApp(settings["style"][:3])
             except Exception as e:
                 self.show_err("Exception", f"Error load save:\n{str(e)}")
 
-        self.settings = Settings(self)
-        self.main_screen = MainScreen(self, ScriptStartThread)
+        self.setStyleApp("New")
         self.setWindowTitle("Auto Clicker/Presser")
         self.stack_widget = QtWidgets.QStackedWidget(self)
         self.stack_widget.addWidget(self.main_screen)
@@ -52,6 +59,32 @@ class MainWindow(QMainWindow):
     def set_text_size(self, size):
         self.text_size = size
         self.change_size_text(self.text_size)
+
+    def setStyleApp(self, style: str):
+        if style == "Old":
+            app.setPalette(self.old_style[0])
+            app.setStyleSheet(self.old_style[1])
+            app.setStyleSheet("""QTabBar::tab:selected {background-color: #3b3b3b;}
+                                 QTabBar::tab {background-color: #575656;}
+                                 QTabWidget::pane {background-color: #3b3b3b}""")
+        elif style == "New":
+            app.setPalette(self.new_style[0])
+            app.setStyleSheet(self.new_style[1])
+        else:
+            if not exists(f"DataSave/Styles/{style}.json"):
+                self.setStyleApp("New")
+                return self.show_err("FileNotFound", f"File '{style}.json' not found")
+            with open(f"DataSave/Styles/{style}.json", "r") as f:
+                style = loads(f.read())
+                styles = []
+                for k, v in style.items():
+                    styles.append(f"{k} {v}".replace(",", ";").replace("'", ""))
+                    for i in range(len(styles)):
+                        if styles[i][:len(k)] == k:
+                            styles[i] = f"{k} {v}".replace(",", ";").replace("'", "")
+                app.setPalette(self.old_style[0])
+                app.setStyleSheet("""\n""".join(styles))
+
 
     def show_info(self, title, message):
         message_box = QtWidgets.QMessageBox()
@@ -95,13 +128,11 @@ class MainWindow(QMainWindow):
                 main_widget.setStyleSheet("""QTabWidget {font-size: %spx;}
                                              QTabWidget::tab-bar {alignment: center;}
                                              QTabWidget::pane {border: 1px solid rgba(255, 255, 255, 20); 
-                                             border-radius: 10px; background-color: #3b3b3b}
-                                             QTabBar::tab {background-color: #575656; 
-                                             border: 1px solid rgba(255, 255, 255, 20); 
+                                             border-radius: 10px}
+                                             QTabBar::tab {border: 1px solid rgba(255, 255, 255, 20); 
                                              border-top-left-radius: 5px; border-top-right-radius: 5px; 
                                              padding: 5px; margin-bottom: 5px;}
-                                             QTabBar::tab:selected {background-color: #3b3b3b; margin-bottom: 0px;}
-                                             # background-color: #435473;""" % text_size)
+                                             QTabBar::tab:selected {margin-bottom: 0px;}""" % text_size)
                 main_widget.widget(0).setStyleSheet("""* {font-size: %spx;}""" % text_size)
                 main_widget.widget(1).setStyleSheet("""* {font-size: %spx;}""" % text_size)
                 self._change_size_text_item(text_size, main_widget.widget(0))
@@ -113,23 +144,21 @@ class MainWindow(QMainWindow):
                 self._change_size_text_item(text_size, main_widget)
             elif isinstance(main_widget, QtWidgets.QTextEdit):
                 main_widget.setMaximumSize(QSize(self.settings.get_slider_value() * 3.5,
-                                                 int((self.settings.get_slider_value() / 2) * 4.5)))
+                                                 int((self.settings.get_slider_value() / 2) * 5)))
                 main_widget.setStyleSheet("""* {font-size: %spx;
                                                 border: 1.8px solid black;
-                                                border-radius: 5px;
-                                                color: #f5f5f5;}
+                                                border-radius: 5px;}
                                              *:focus {border: 1px solid rgba(255, 255, 255, 70);}""" % text_size)
 
                 format_t = main_widget.document().rootFrame().frameFormat()
                 format_t.setTopMargin(self.get_text_size() / 3)
                 main_widget.document().rootFrame().setFrameFormat(format_t)
+            elif isinstance(main_widget, QtWidgets.QDialog):
+                self._change_size_text_item(text_size, main_widget)
             else:
                 main_widget.setStyleSheet("""* {font-size: %spx;}""" % text_size)
-        self.resize(self.get_text_size() * 7.5, self.get_text_size() * 17.5)
+        self.resize(self.get_text_size() * 20, self.get_text_size() * 19.5)
 
-
-class AlertDialog(QtWidgets.QMessageBox):
-    ...
 
 
 class ScriptStartThread(QThread):
@@ -180,13 +209,9 @@ class ScriptStartThread(QThread):
         self.terminate()
 
 
-def start():
+if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
-
-
-if __name__ == "__main__":
-    start()

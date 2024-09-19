@@ -3,6 +3,7 @@ venv
 linux
 .idea
 Images
+DataSave
 # files
 AutoPresser.deb
 presser_app.ico
