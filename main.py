@@ -7,6 +7,8 @@ from os.path import exists
 from PySide6 import QtWidgets
 from PySide6.QtCore import QThread, QSize
 from PySide6.QtWidgets import QApplication, QMainWindow
+from updater import check_version
+from webbrowser import open_new as web_open
 import sys
 import auto_clicker
 import press_click
@@ -16,10 +18,12 @@ import qdarktheme
 try:
     from ctypes import windll
 
-    myappid = 'droid_android.auto_presser.1_5_0'
+    myappid = 'droid_android.auto_presser.1_6_0'
     windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 except ImportError:
     pass
+
+__version__ = "1.6.0 pre-release"
 
 
 class MainWindow(QMainWindow):
@@ -52,6 +56,7 @@ class MainWindow(QMainWindow):
         self.stack_widget.setCurrentIndex(0)
         self.setCentralWidget(self.stack_widget)
         self.change_size_text(self.text_size)
+        self.update_app()
 
     def get_text_size(self):
         return self.text_size
@@ -159,6 +164,19 @@ class MainWindow(QMainWindow):
                 main_widget.setStyleSheet("""* {font-size: %spx;}""" % text_size)
         self.resize(self.get_text_size() * 20, self.get_text_size() * 19.5)
 
+    def update_app(self):
+        info = check_version(__version__)
+        if info is None:
+            return
+
+        message = QtWidgets.QMessageBox()
+        btn = message.information(self, "Update available", f"{" ".join(info[0])} available! Version now: {__version__}",
+                                  QtWidgets.QMessageBox.StandardButton.Open, QtWidgets.QMessageBox.StandardButton.Close)
+
+        if btn == message.StandardButton.Open:
+            web_open(info[1])
+        elif btn == message.StandardButton.Close:
+            message.close()
 
 
 class ScriptStartThread(QThread):
