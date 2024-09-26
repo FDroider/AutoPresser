@@ -4,6 +4,11 @@ linux
 .idea
 Images
 DataSave
+dist
+build
+__pycache__
+UI/__pycache__
 # files
+AutoPresser.spec
 AutoPresser.deb
 presser_app.ico

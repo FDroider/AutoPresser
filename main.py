@@ -18,12 +18,12 @@ import qdarktheme
 try:
     from ctypes import windll
 
-    myappid = 'droid_android.auto_presser.1_6_0'
+    myappid = 'f_droider.auto_presser.1_6_0'
     windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 except ImportError:
     pass
 
-__version__ = "1.6.0 pre-release"
+__version__ = "1.6.0"
 
 
 class MainWindow(QMainWindow):
@@ -77,8 +77,8 @@ class MainWindow(QMainWindow):
             app.setStyleSheet(self.new_style[1])
         else:
             if not exists(f"DataSave/Styles/{style}.json"):
-                self.setStyleApp("New")
-                return self.show_err("FileNotFound", f"File '{style}.json' not found")
+                self.show_err("FileNotFound", f"File '{style}.json' not found")
+                raise FileNotFoundError
             with open(f"DataSave/Styles/{style}.json", "r") as f:
                 style = loads(f.read())
                 styles = []
@@ -149,14 +149,14 @@ class MainWindow(QMainWindow):
                 self._change_size_text_item(text_size, main_widget)
             elif isinstance(main_widget, QtWidgets.QTextEdit):
                 main_widget.setMaximumSize(QSize(self.settings.get_slider_value() * 3.5,
-                                                 int((self.settings.get_slider_value() / 2) * 5)))
+                                                 int((self.settings.get_slider_value() / 2) * 5.1)))
                 main_widget.setStyleSheet("""* {font-size: %spx;
                                                 border: 1.8px solid black;
                                                 border-radius: 5px;}
                                              *:focus {border: 1px solid rgba(255, 255, 255, 70);}""" % text_size)
 
                 format_t = main_widget.document().rootFrame().frameFormat()
-                format_t.setTopMargin(self.get_text_size() / 3)
+                format_t.setTopMargin(self.get_text_size() / 4)
                 main_widget.document().rootFrame().setFrameFormat(format_t)
             elif isinstance(main_widget, QtWidgets.QDialog):
                 self._change_size_text_item(text_size, main_widget)
