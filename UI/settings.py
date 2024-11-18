@@ -136,13 +136,12 @@ class SettingsAppFrame(QtWidgets.QFrame):
         self.lb_style.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
         self.dropdown_style = QtWidgets.QComboBox()
         self.dropdown_style.addItems(self.show_styles())
-        self.dropdown_style.setCurrentIndex(1)
         self.dropdown_style.currentIndexChanged.connect(self.changeStyle)
         self.btn_select = QtWidgets.QPushButton("Create style")
         self.btn_select.clicked.connect(self.open_style_dlg)
         self.btn_change = QtWidgets.QPushButton("Change style")
         self.btn_change.clicked.connect(lambda: self.open_style_dlg(self.dropdown_style.currentText())
-                                                if self.dropdown_style.currentText()[:3] not in ("New", "Old")
+                                                if self.dropdown_style.currentIndex() not in (0, 1)
                                                 else None)
         self.lb_text_size = QtWidgets.QLabel("Text size")
         self.lb_text_size.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
@@ -170,7 +169,7 @@ class SettingsAppFrame(QtWidgets.QFrame):
         self.master.set_text_size(self.slider.value())
 
     def show_styles(self):
-        styles = ["Old version", "New version"]
+        styles = ["Default", "Old version"]
         if not exists("DataSave/Styles"):
             return styles
         for f in listdir("DataSave/Styles"):
@@ -191,9 +190,9 @@ class SettingsAppFrame(QtWidgets.QFrame):
             self.dropdown_style.setCurrentText(currentText)
 
     def changeStyle(self):
-        if self.dropdown_style.currentIndex() == 0:
+        if self.dropdown_style.currentIndex() == 1:
             self.master.setStyleApp("Old")
-        elif self.dropdown_style.currentIndex() == 1:
+        elif self.dropdown_style.currentIndex() == 0:
             self.master.setStyleApp("New")
         else:
             try:

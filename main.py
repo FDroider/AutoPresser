@@ -3,12 +3,13 @@ from asyncio import run
 from json import loads
 from UI.main_screen import MainScreen, OneKeyFrame, HotKeyFrame
 from UI.settings import Settings
-from os.path import exists
+from os.path import exists, dirname
 from PySide6 import QtWidgets
 from PySide6.QtCore import QThread, QSize
 from PySide6.QtWidgets import QApplication, QMainWindow
 from updater import check_version
 from webbrowser import open_new as web_open
+from darkdetect import isDark
 import sys
 import auto_clicker
 import press_click
@@ -18,12 +19,12 @@ import qdarktheme
 try:
     from ctypes import windll
 
-    myappid = 'f_droider.auto_presser.1_6_0'
+    myappid = 'f_droider.auto_presser.1_6_2'
     windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 except ImportError:
     pass
 
-__version__ = "1.6.0"
+__version__ = "1.6.2"
 
 
 class MainWindow(QMainWindow):
@@ -43,12 +44,10 @@ class MainWindow(QMainWindow):
                     settings = loads(f.read())
                     self.text_size = settings["text_size"]
                     self.settings.settings_app_frame.dropdown_style.setCurrentText(settings["style"])
-                    if settings["style"] in ("New version", "Old version"):
-                        self.setStyleApp(settings["style"][:3])
             except Exception as e:
                 self.show_err("Exception", f"Error load save:\n{str(e)}")
 
-        self.setStyleApp("New")
+        self.settings.settings_app_frame.changeStyle()
         self.setWindowTitle("Auto Clicker/Presser")
         self.stack_widget = QtWidgets.QStackedWidget(self)
         self.stack_widget.addWidget(self.main_screen)
@@ -130,14 +129,26 @@ class MainWindow(QMainWindow):
             if isinstance(main_widget, MainScreen) or isinstance(main_widget, Settings):
                 self._change_size_text_item(text_size, main_widget)
             if isinstance(main_widget, QtWidgets.QTabWidget):
-                main_widget.setStyleSheet("""QTabWidget {font-size: %spx;}
-                                             QTabWidget::tab-bar {alignment: center;}
-                                             QTabWidget::pane {border: 1px solid rgba(255, 255, 255, 20); 
-                                             border-radius: 10px}
-                                             QTabBar::tab {border: 1px solid rgba(255, 255, 255, 20); 
-                                             border-top-left-radius: 5px; border-top-right-radius: 5px; 
-                                             padding: 5px; margin-bottom: 5px;}
-                                             QTabBar::tab:selected {margin-bottom: 0px;}""" % text_size)
+                if not isDark():
+                    main_widget.setStyleSheet("""QTabWidget {font-size: %spx;}
+                                                             QTabWidget::tab-bar {alignment: center;}
+                                                             QTabWidget::pane {border: 2px solid rgba(181, 181, 181, 70);
+                                                             border-radius: 10px; background-color: rgba(181, 181, 181, 70)}
+                                                             QTabBar::tab {border: 1px solid rgba(255, 255, 255, 20);
+                                                             background-color: rgba(181, 181, 181, 70);
+                                                             border-top-left-radius: 5px; border-top-right-radius: 5px; 
+                                                             padding: 5px; margin-bottom: 5px;}
+                                                             QTabBar::tab:selected {margin-bottom: 0px;
+                                                             background-color: rgba(181, 181, 181, 100)}""" % text_size)
+                else:
+                    main_widget.setStyleSheet("""QTabWidget {font-size: %spx;}
+                                                             QTabWidget::tab-bar {alignment: center;}
+                                                             QTabWidget::pane {border: 1.5px solid rgba(163, 163, 163, 50); 
+                                                             border-radius: 10px}
+                                                             QTabBar::tab {border: 1px solid rgba(163, 163, 163, 20); 
+                                                             border-top-left-radius: 5px; border-top-right-radius: 5px; 
+                                                             padding: 5px; margin-bottom: 5px;}
+                                                             QTabBar::tab:selected {margin-bottom: 0px;}""" % text_size)
                 main_widget.widget(0).setStyleSheet("""* {font-size: %spx;}""" % text_size)
                 main_widget.widget(1).setStyleSheet("""* {font-size: %spx;}""" % text_size)
                 self._change_size_text_item(text_size, main_widget.widget(0))
@@ -150,10 +161,16 @@ class MainWindow(QMainWindow):
             elif isinstance(main_widget, QtWidgets.QTextEdit):
                 main_widget.setMaximumSize(QSize(self.settings.get_slider_value() * 3.5,
                                                  int((self.settings.get_slider_value() / 2) * 5.1)))
-                main_widget.setStyleSheet("""* {font-size: %spx;
-                                                border: 1.8px solid black;
-                                                border-radius: 5px;}
-                                             *:focus {border: 1px solid rgba(255, 255, 255, 70);}""" % text_size)
+                if isDark():
+                    main_widget.setStyleSheet("""* {font-size: %spx;
+                                                    border: 1.8px solid black;
+                                                    border-radius: 5px;}
+                                                 *:focus {border: 1px solid rgba(255, 255, 255, 70);}""" % text_size)
+                else:
+                    main_widget.setStyleSheet("""* {font-size: %spx;
+                                                    border: 1.8px solid rgba(128, 128, 128, 20);
+                                                    border-radius: 5px;}
+                                                 *:focus {border: 1px solid rgba(128, 128, 128, 90);}""" % text_size)
 
                 format_t = main_widget.document().rootFrame().frameFormat()
                 format_t.setTopMargin(self.get_text_size() / 4)

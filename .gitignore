@@ -9,6 +9,5 @@ build
 __pycache__
 UI/__pycache__
 # files
-AutoPresser.spec
-AutoPresser.deb
+pyintaller_opt.txt
 presser_app.ico
