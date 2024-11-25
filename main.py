@@ -1,9 +1,9 @@
 from asyncio import new_event_loop, set_event_loop
 from asyncio import run
-from json import loads
+from json import loads, dumps
 from UI.main_screen import MainScreen, OneKeyFrame, HotKeyFrame
 from UI.settings import Settings
-from os.path import exists, dirname
+from os.path import exists
 from PySide6 import QtWidgets
 from PySide6.QtCore import QThread, QSize
 from PySide6.QtWidgets import QApplication, QMainWindow
@@ -19,12 +19,12 @@ import qdarktheme
 try:
     from ctypes import windll
 
-    myappid = 'f_droider.auto_presser.1_6_2'
+    myappid = 'f_droider.auto_presser.1_6_5'
     windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 except ImportError:
     pass
 
-__version__ = "1.6.2"
+__version__ = "1.6.5"
 
 
 class MainWindow(QMainWindow):
@@ -42,8 +42,8 @@ class MainWindow(QMainWindow):
             try:
                 with open("DataSave/config.json", "r") as f:
                     settings = loads(f.read())
-                    self.text_size = settings["text_size"]
-                    self.settings.settings_app_frame.dropdown_style.setCurrentText(settings["style"])
+                    self.text_size = settings["text_size"] if settings.get("text_size") else self.text_size
+                    self.settings.settings_app_frame.dropdown_style.setCurrentText(settings.get("style"))
             except Exception as e:
                 self.show_err("Exception", f"Error load save:\n{str(e)}")
 
@@ -62,7 +62,6 @@ class MainWindow(QMainWindow):
 
     def set_text_size(self, size):
         self.text_size = size
-        self.change_size_text(self.text_size)
 
     def setStyleApp(self, style: str):
         if style == "Old":
@@ -185,21 +184,65 @@ class MainWindow(QMainWindow):
         info = check_version(__version__)
         if info is None:
             return
+        elif exists("DataSave/config.json"):
+            with open("DataSave/config.json", "r") as f:
+                settings: dict = loads(f.read())
+                if info[0] == settings.get("ignore_version"):
+                    return
 
         message = QtWidgets.QMessageBox()
-        btn = message.information(self, "Update available", f"{" ".join(info[0])} available! Version now: {__version__}",
-                                  QtWidgets.QMessageBox.StandardButton.Open, QtWidgets.QMessageBox.StandardButton.Close)
+        message.setWindowTitle("Update available")
+        message.setText(f"{" ".join(info[0])} available! Version now: {__version__}")
+        message.setIcon(message.Icon.Information)
+        message.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Ignore |
+                                   QtWidgets.QMessageBox.StandardButton.Close|
+                                   QtWidgets.QMessageBox.StandardButton.Open)
+        btn = message.exec()
 
         if btn == message.StandardButton.Open:
             web_open(info[1])
         elif btn == message.StandardButton.Close:
             message.close()
+        elif btn == message.StandardButton.Ignore:
+            type_read = "w"
+            if exists("DataSave/config.json"):
+                type_read = "r+"
+            with open("DataSave/config.json", type_read) as f:
+                try:
+                    settings: dict = loads(f.read())
+                except:
+                    settings = {}
+                settings.update({"ignore_version": info[0]})
+                f.seek(0)
+                f.write(dumps(settings))
+                f.truncate()
+
+
+    def add_items_layout(self, layout: QtWidgets.QBoxLayout, widgets: list[QtWidgets.QWidget] = None,
+                         layouts: list[QtWidgets.QLayout] = None):
+        if widgets:
+            for i in widgets:
+                if i:
+                    layout.addWidget(i)
+        if layouts:
+            for i in layouts:
+                if i:
+                    layout.addLayout(i)
+        return layout
+
+    def create_layout(self, layout_type: str = "h", widgets: list[QtWidgets.QWidget] = None,
+                      layouts: list[QtWidgets.QLayout] = None):
+        if layout_type == "v":
+            layout = QtWidgets.QVBoxLayout()
+        else:
+            layout = QtWidgets.QHBoxLayout()
+        return self.add_items_layout(layout, widgets, layouts)
 
 
 class ScriptStartThread(QThread):
-    def __init__(self, parent, type_key: int, script: int):
+    def __init__(self, master, type_key: int, script: int):
         super().__init__()
-        self.parent = parent
+        self.parent = master
         self.type_key = type_key
         self.script = script
         self.script_name = press_click if self.script == 0 else auto_clicker
@@ -247,6 +290,8 @@ class ScriptStartThread(QThread):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
+    app.setApplicationName("AutoPresser")
+    app.setApplicationVersion(__version__)
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

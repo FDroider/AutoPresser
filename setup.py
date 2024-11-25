@@ -9,7 +9,7 @@ build_options={
 
 setup(
     name="AutoPresser",
-    version="1.6.2",
+    version="1.6.5",
     description="AutoPresser",
     author="FDroider",
     keywords=["Clicker", "Presser", "AutoPresser", "AutoClicker"],

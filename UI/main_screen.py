@@ -7,11 +7,11 @@ class MainScreen(QtWidgets.QWidget):
     __slots__ = ("tab_widget", "one_key_frame", "hot_key_frame", "group_btn",
                  "key_layout", "chose_script_l", "v_layout")
 
-    def __init__(self, parent, starter_script):
-        super().__init__(parent)
+    def __init__(self, master, starter_script):
+        super().__init__(master)
         basedir = dirname(__file__)
 
-        self.master = parent
+        self.master = master
         self.starter_script_thread = starter_script
 
         self.tab_widget = QtWidgets.QTabWidget()
@@ -63,29 +63,15 @@ class MainScreen(QtWidgets.QWidget):
         self.dropdown_script.addItems(["Presser", "AutoClicker"])
         self.dropdown_script.setCurrentIndex(0)
 
-        self.group_btn = QtWidgets.QHBoxLayout()
-        self.key_layout = QtWidgets.QHBoxLayout()
-        self.chose_script_l = QtWidgets.QHBoxLayout()
-        self.v_layout = QtWidgets.QVBoxLayout(self)
-
-        self.key_layout.addWidget(self.dropdown_btn)
-        self.key_layout.addWidget(self.entry)
-
-        self.group_btn.addWidget(self.btn_settings)
-        self.group_btn.addWidget(self.btn_save)
-        self.group_btn.addWidget(self.btn_save_presets)
-
-        self.chose_script_l.addWidget(self.btn_start)
-        self.chose_script_l.addWidget(self.dropdown_script)
-
-        self.v_layout.addWidget(self.tab_widget)
-        self.v_layout.addLayout(self.key_layout)
-        self.v_layout.addLayout(self.group_btn)
-        self.v_layout.addLayout(self.chose_script_l)
+        self.group_btn = self.master.create_layout(widgets=[self.btn_settings, self.btn_save, self.btn_save_presets])
+        self.key_layout = self.master.create_layout(widgets=[self.dropdown_btn, self.entry])
+        self.chose_script_l = self.master.create_layout(widgets=[self.btn_start, self.dropdown_script])
+        self.v_layout = self.master.add_items_layout(QtWidgets.QVBoxLayout(self),
+                                                     widgets=[self.tab_widget],
+                                                     layouts=[self.key_layout, self.group_btn, self.chose_script_l])
 
         self.tab.setLayout(self.one_key_frame.layout())
         self.tab_2.setLayout(self.hot_key_frame.layout())
-        self.setLayout(self.v_layout)
 
     def get_options_one_key(self):
         return self.master.settings.settings_script_frame.duration_one_key.toPlainText()

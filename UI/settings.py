@@ -1,5 +1,5 @@
 from os.path import exists
-from os import mkdir, makedirs, listdir
+from os import mkdir, makedirs, listdir, remove
 from PySide6 import QtWidgets, QtCore, QtGui
 from json import dumps, loads
 
@@ -35,11 +35,9 @@ class Settings(QtWidgets.QWidget):
         self.tab_2.setLayout(self.settings_app_frame.layout())
 
         self.settings_layout = QtWidgets.QVBoxLayout(self)
-        self.btn_layout = QtWidgets.QHBoxLayout()
+        self.btn_layout = self.master.create_layout(widgets=[self.btn_back, self.btn_save])
 
         self.settings_layout.addWidget(self.tab_view)
-        self.btn_layout.addWidget(self.btn_back)
-        self.btn_layout.addWidget(self.btn_save)
         self.settings_layout.addLayout(self.btn_layout)
 
     def back(self):
@@ -50,8 +48,14 @@ class Settings(QtWidgets.QWidget):
                     "style": self.settings_app_frame.dropdown_style.currentText()}
         if not exists("DataSave"):
             mkdir("DataSave")
-        with open("DataSave/config.json", "w") as f:
+        with open("DataSave/config.json", "r+") as f:
+            try:
+                settings.update(loads(f.read()))
+            except:
+                pass
+            f.seek(0)
             f.write(dumps(settings))
+            f.truncate()
         self.master.show_info("Success", "Settings saved")
 
     def get_slider_value(self):
@@ -60,6 +64,7 @@ class Settings(QtWidgets.QWidget):
 
 class SettingsScripFrame(QtWidgets.QFrame):
     __slots__ = ("h_one_key_l", "h_hot_key_l", "h_presets_l", "v_layout")
+
     def __init__(self, master):
         super().__init__()
         self.master = master
@@ -86,21 +91,12 @@ class SettingsScripFrame(QtWidgets.QFrame):
         self.dropdown_presets.addItems(self.show_presets())
         self.dropdown_presets.setToolTip("Preset")
         self.btn_select = QtWidgets.QPushButton("Select")
-        self.btn_select.clicked.connect(lambda: self.master.main_screen.load_preset(self.dropdown_presets.currentText()))
+        self.btn_select.clicked.connect(
+            lambda: self.master.main_screen.load_preset(self.dropdown_presets.currentText()))
 
-        self.h_one_key_l = QtWidgets.QHBoxLayout()
-
-        self.h_one_key_l.addWidget(self.duration_one_key)
-
-        self.h_hot_key_l = QtWidgets.QHBoxLayout()
-
-        self.h_hot_key_l.addWidget(self.delay_hot_key)
-        self.h_hot_key_l.addWidget(self.interval_hot_key)
-
-        self.h_presets_l = QtWidgets.QHBoxLayout()
-
-        self.h_presets_l.addWidget(self.dropdown_presets)
-        self.h_presets_l.addWidget(self.btn_select)
+        self.h_one_key_l = self.master.create_layout(widgets=[self.duration_one_key])
+        self.h_hot_key_l = self.master.create_layout(widgets=[self.delay_hot_key, self.interval_hot_key])
+        self.h_presets_l = self.master.create_layout(widgets=[self.dropdown_presets, self.btn_select])
 
         self.v_layout = QtWidgets.QVBoxLayout(self)
 
@@ -141,25 +137,29 @@ class SettingsAppFrame(QtWidgets.QFrame):
         self.btn_select.clicked.connect(self.open_style_dlg)
         self.btn_change = QtWidgets.QPushButton("Change style")
         self.btn_change.clicked.connect(lambda: self.open_style_dlg(self.dropdown_style.currentText())
-                                                if self.dropdown_style.currentIndex() not in (0, 1)
-                                                else None)
+                                        if self.dropdown_style.currentIndex() not in (0, 1)
+                                        else None)
+        self.btn_delete = QtWidgets.QPushButton("Delete Style")
+        self.btn_delete.clicked.connect(lambda: self.delete_style(self.dropdown_style.currentText())
+                                        if self.dropdown_style.currentIndex() not in (0, 1)
+                                        else None)
         self.lb_text_size = QtWidgets.QLabel("Text size")
         self.lb_text_size.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
         self.slider = QtWidgets.QSlider(QtGui.Qt.Orientation.Horizontal)
         self.slider.setValue(self.master.get_text_size())
         self.slider.setMinimum(11)
         self.slider.setMaximum(25)
+        self.slider.sliderReleased.connect(lambda: self.master.change_size_text(self.master.text_size))
         self.slider.valueChanged.connect(self.change_size)
         self.slider.setToolTip(f"{self.slider.value()}px")
 
         self.v_layout = QtWidgets.QVBoxLayout(self)
-        self.h_layout = QtWidgets.QHBoxLayout()
+        self.h_layout_style = self.master.create_layout(widgets=[self.dropdown_style, self.btn_select])
+        self.h_layout_change = self.master.create_layout(widgets=[self.btn_delete, self.btn_change])
 
         self.v_layout.addWidget(self.lb_style)
-        self.h_layout.addWidget(self.dropdown_style)
-        self.h_layout.addWidget(self.btn_select)
-        self.v_layout.addLayout(self.h_layout)
-        self.v_layout.addWidget(self.btn_change)
+        self.v_layout.addLayout(self.h_layout_style)
+        self.v_layout.addLayout(self.h_layout_change)
         self.v_layout.addWidget(self.lb_text_size)
         self.v_layout.addWidget(self.slider)
 
@@ -189,6 +189,11 @@ class SettingsAppFrame(QtWidgets.QFrame):
         else:
             self.dropdown_style.setCurrentText(currentText)
 
+    def delete_style(self, style_name: str):
+        if exists(f"DataSave/Styles/{style_name}.json"):
+            remove(f"DataSave/Styles/{style_name}.json")
+        self.update_styles()
+
     def changeStyle(self):
         if self.dropdown_style.currentIndex() == 1:
             self.master.setStyleApp("Old")
@@ -211,13 +216,15 @@ class SettingsAppFrame(QtWidgets.QFrame):
 
 class SettingsColor(QtWidgets.QDialog):
     __slots__ = ("h_layout_window", "h_layout_button", "h_layout_text", "h_layout_dropdown", "h_layout_tab", "v_layout")
+
     def __init__(self, text_size, master, style_name):
         super().__init__()
-        self.size_var = master.master.get_text_size()
+        self.master = master
+        self.master_main = master.master
+        self.size_var = self.master_main.get_text_size()
         self.resize(self.size_var * 20, self.size_var * 15.4)
         self.colors = {}
         self.app = QtWidgets.QApplication.instance()
-        self.master = master
         self.dlg_color = QtWidgets.QColorDialog()
         self.setWindowTitle("Create style")
         self.style_name = QtWidgets.QTextEdit()
@@ -240,14 +247,14 @@ class SettingsColor(QtWidgets.QDialog):
         self.lb_window = QtWidgets.QLabel("Window")
         self.btn_window = QtWidgets.QPushButton(text="Select color")
         self.btn_window.clicked.connect(lambda: self._stylesheet_select(self.dlg_color.getColor(),
-                                                                "QMainWindow",
-                                                                 ("background-color",)))
+                                                                        "QMainWindow",
+                                                                        ("background-color",)))
 
         self.lb_button = QtWidgets.QLabel("Button")
         self.btn_button = QtWidgets.QPushButton(text="Select color")
         self.btn_button.clicked.connect(lambda: self._stylesheet_select(self.dlg_color.getColor(),
                                                                         "QPushButton",
-                                                                 ("background-color",)))
+                                                                        ("background-color",)))
         self.frame_button_extra = ExtraButtonOption(self)
         self.frame_button_extra.setHidden(True)
         self.btn_button_extra = QtWidgets.QPushButton(text="Extra options")
@@ -256,14 +263,14 @@ class SettingsColor(QtWidgets.QDialog):
         self.lb_text = QtWidgets.QLabel("Text")
         self.btn_text = QtWidgets.QPushButton(text="Select color")
         self.btn_text.clicked.connect(lambda: self._stylesheet_select(self.dlg_color.getColor(),
-                                                             "QLabel",
-                                                               ("color",)))
+                                                                      "QLabel",
+                                                                      ("color",)))
 
         self.lb_dropdown = QtWidgets.QLabel("Dropdown")
         self.btn_dropdown = QtWidgets.QPushButton(text="Select color")
         self.btn_dropdown.clicked.connect(lambda: self._stylesheet_select(self.dlg_color.getColor(),
-                                                                 "QComboBox",
-                                                                   ("background-color",)))
+                                                                          "QComboBox",
+                                                                          ("background-color",)))
         self.frame_dropdown_extra = ExtraDropdownOption(self)
         self.frame_dropdown_extra.setHidden(True)
         self.btn_dropdown_extra = QtWidgets.QPushButton(text="Extra options")
@@ -272,8 +279,8 @@ class SettingsColor(QtWidgets.QDialog):
         self.lb_tab = QtWidgets.QLabel("Tab")
         self.btn_tab = QtWidgets.QPushButton(text="Select color")
         self.btn_tab.clicked.connect(lambda: self._stylesheet_select(self.dlg_color.getColor(),
-                                                            "QTabWidget::pane",
-                                                              ("background-color",)))
+                                                                     "QTabWidget::pane",
+                                                                     ("background-color",)))
         self.frame_tab_extra = ExtraTabOption(self)
         self.frame_tab_extra.setHidden(True)
         self.btn_tab_extra = QtWidgets.QPushButton(text="Extra options")
@@ -284,22 +291,11 @@ class SettingsColor(QtWidgets.QDialog):
         self.btnBox.accepted.connect(self.accept)
         self.btnBox.rejected.connect(self.reject)
 
-        self.h_layout_window = QtWidgets.QHBoxLayout()
-        self.h_layout_button = QtWidgets.QHBoxLayout()
-        self.h_layout_text = QtWidgets.QHBoxLayout()
-        self.h_layout_dropdown = QtWidgets.QHBoxLayout()
-        self.h_layout_tab = QtWidgets.QHBoxLayout()
-
-        self.h_layout_window.addWidget(self.lb_window)
-        self.h_layout_window.addWidget(self.btn_window)
-        self.h_layout_button.addWidget(self.lb_button)
-        self.h_layout_button.addWidget(self.btn_button)
-        self.h_layout_text.addWidget(self.lb_text)
-        self.h_layout_text.addWidget(self.btn_text)
-        self.h_layout_dropdown.addWidget(self.lb_dropdown)
-        self.h_layout_dropdown.addWidget(self.btn_dropdown)
-        self.h_layout_tab.addWidget(self.lb_tab)
-        self.h_layout_tab.addWidget(self.btn_tab)
+        self.h_layout_window = self.master_main.create_layout(widgets=[self.lb_window, self.btn_window])
+        self.h_layout_button = self.master_main.create_layout(widgets=[self.lb_button, self.btn_button])
+        self.h_layout_text = self.master_main.create_layout(widgets=[self.lb_text, self.btn_text])
+        self.h_layout_dropdown = self.master_main.create_layout(widgets=[self.lb_dropdown, self.btn_dropdown])
+        self.h_layout_tab = self.master_main.create_layout(widgets=[self.lb_tab, self.btn_tab])
 
         self.v_layout = QtWidgets.QVBoxLayout(self)
         self.v_layout.addWidget(self.style_name)
@@ -340,7 +336,7 @@ class SettingsColor(QtWidgets.QDialog):
 
     def accept(self):
         if self.style_name.toPlainText().replace(" ", "") == "":
-            self.master.master.show_err("ValueError", "Enter name for style!")
+            self.master_main.show_err("ValueError", "Enter name for style!")
             return
 
         if not exists("DataSave/Styles"):
@@ -365,8 +361,10 @@ class SettingsColor(QtWidgets.QDialog):
 
 class ExtraButtonOption(QtWidgets.QFrame):
     __slots__ = ("h_layout_button_text", "h_layout_button_hover", "h_layout_button_disabled", "v_layout")
+
     def __init__(self, master):
         super().__init__()
+        self.master_main = master.master.master
         self.lb_button_text = QtWidgets.QLabel("Button text")
         self.btn_button_text = QtWidgets.QPushButton(text="Select color")
         self.btn_button_text.clicked.connect(lambda: master._stylesheet_select(master.dlg_color.getColor(),
@@ -385,27 +383,21 @@ class ExtraButtonOption(QtWidgets.QFrame):
                                                                                    "QPushButton::disabled",
                                                                                    ("background-color",)))
 
-        self.h_layout_button_text = QtWidgets.QHBoxLayout()
-        self.h_layout_button_hover = QtWidgets.QHBoxLayout()
-        self.h_layout_button_disabled = QtWidgets.QHBoxLayout()
+        self.h_layout_button_text = self.master_main.create_layout(widgets=[self.lb_button_text, self.btn_button_text])
+        self.h_layout_button_hover = self.master_main.create_layout(widgets=[self.lb_button_hover, self.btn_button_hover])
+        self.h_layout_button_disabled = self.master_main.create_layout(widgets=[self.lb_button_disabled, self.btn_button_disabled])
 
-        self.h_layout_button_text.addWidget(self.lb_button_text)
-        self.h_layout_button_text.addWidget(self.btn_button_text)
-        self.h_layout_button_hover.addWidget(self.lb_button_hover)
-        self.h_layout_button_hover.addWidget(self.btn_button_hover)
-        self.h_layout_button_disabled.addWidget(self.lb_button_disabled)
-        self.h_layout_button_disabled.addWidget(self.btn_button_disabled)
-
-        self.v_layout = QtWidgets.QVBoxLayout(self)
-        self.v_layout.addLayout(self.h_layout_button_text)
-        self.v_layout.addLayout(self.h_layout_button_hover)
-        self.v_layout.addLayout(self.h_layout_button_disabled)
+        self.v_layout = self.master_main.add_items_layout(QtWidgets.QVBoxLayout(self),
+                                                       layouts=[self.h_layout_button_text, self.h_layout_button_hover,
+                                                                self.h_layout_button_disabled])
 
 
 class ExtraDropdownOption(QtWidgets.QFrame):
     __slots__ = ("h_layout_dropdown_text", "h_layout_dropdown_hover", "h_layout_dropdown_disabled", "v_layout")
+
     def __init__(self, master):
         super().__init__()
+        self.master_main = master.master.master
         self.lb_dropdown_text = QtWidgets.QLabel("Dropdown text")
         self.btn_dropdown_text = QtWidgets.QPushButton(text="Select color")
         self.btn_dropdown_text.clicked.connect(lambda: master._stylesheet_select(master.dlg_color.getColor(),
@@ -424,27 +416,24 @@ class ExtraDropdownOption(QtWidgets.QFrame):
                                                                                      "QComboBox::disabled",
                                                                                      ("background-color",)))
 
-        self.h_layout_dropdown_text = QtWidgets.QHBoxLayout()
-        self.h_layout_dropdown_hover = QtWidgets.QHBoxLayout()
-        self.h_layout_dropdown_disabled = QtWidgets.QHBoxLayout()
+        self.h_layout_dropdown_text = self.master_main.create_layout(widgets=[self.lb_dropdown_text, self.btn_dropdown_text])
+        self.h_layout_dropdown_hover = self.master_main.create_layout(widgets=[self.lb_dropdown_hover, self.btn_dropdown_hover])
+        self.h_layout_dropdown_disabled = self.master_main.create_layout(widgets=[self.lb_dropdown_disabled,
+                                                                                  self.btn_dropdown_disabled])
 
-        self.h_layout_dropdown_text.addWidget(self.lb_dropdown_text)
-        self.h_layout_dropdown_text.addWidget(self.btn_dropdown_text)
-        self.h_layout_dropdown_hover.addWidget(self.lb_dropdown_hover)
-        self.h_layout_dropdown_hover.addWidget(self.btn_dropdown_hover)
-        self.h_layout_dropdown_disabled.addWidget(self.lb_dropdown_disabled)
-        self.h_layout_dropdown_disabled.addWidget(self.btn_dropdown_disabled)
+        self.v_layout = self.master_main.add_items_layout(QtWidgets.QVBoxLayout(self),
+                                                          layouts=[self.h_layout_dropdown_text,
+                                                                   self.h_layout_dropdown_hover,
+                                                                   self.h_layout_dropdown_disabled])
 
-        self.v_layout = QtWidgets.QVBoxLayout(self)
-        self.v_layout.addLayout(self.h_layout_dropdown_text)
-        self.v_layout.addLayout(self.h_layout_dropdown_hover)
-        self.v_layout.addLayout(self.h_layout_dropdown_disabled)
 
 class ExtraTabOption(QtWidgets.QFrame):
     __slots__ = ("h_layout_tab_bar", "h_layout_tab_bar_text", "h_layout_tab_bar_hover", "h_layout_tab_bar_selected",
                  "h_layout_tab_bar_disabled", "v_layout")
+
     def __init__(self, master):
         super().__init__()
+        self.master_main = master.master.master
         self.lb_tab_bar = QtWidgets.QLabel("Tab bar")
         self.btn_tab_bar = QtWidgets.QPushButton(text="Select color")
         self.btn_tab_bar.clicked.connect(lambda: master._stylesheet_select(master.dlg_color.getColor(),
@@ -480,30 +469,14 @@ class ExtraTabOption(QtWidgets.QFrame):
                                                                                 "QTabWidget::pane:disabled",
                                                                                 ("background-color",)))
 
-        self.h_layout_tab_bar = QtWidgets.QHBoxLayout()
-        self.h_layout_tab_bar_text = QtWidgets.QHBoxLayout()
-        self.h_layout_tab_bar_hover = QtWidgets.QHBoxLayout()
-        self.h_layout_tab_bar_selected = QtWidgets.QHBoxLayout()
-        self.h_layout_tab_bar_disabled = QtWidgets.QHBoxLayout()
-        self.h_layout_tab_disabled = QtWidgets.QHBoxLayout()
+        self.h_layout_tab_bar = self.master_main.create_layout(widgets=[self.lb_tab_bar, self.btn_tab_bar])
+        self.h_layout_tab_bar_text = self.master_main.create_layout(widgets=[self.lb_tab_bar_text, self.btn_tab_bar_text])
+        self.h_layout_tab_bar_hover = self.master_main.create_layout(widgets=[self.lb_tab_bar_hover, self.btn_tab_bar_hover])
+        self.h_layout_tab_bar_selected = self.master_main.create_layout(widgets=[self.lb_tab_bar_selected, self.btn_tab_bar_selected])
+        self.h_layout_tab_bar_disabled = self.master_main.create_layout(widgets=[self.lb_tab_bar_disabled, self.btn_tab_bar_disabled])
+        self.h_layout_tab_disabled = self.master_main.create_layout(widgets=[self.lb_tab_disabled, self.btn_tab_disabled])
 
-        self.h_layout_tab_bar.addWidget(self.lb_tab_bar)
-        self.h_layout_tab_bar.addWidget(self.btn_tab_bar)
-        self.h_layout_tab_bar_text.addWidget(self.lb_tab_bar_text)
-        self.h_layout_tab_bar_text.addWidget(self.btn_tab_bar_text)
-        self.h_layout_tab_bar_hover.addWidget(self.lb_tab_bar_hover)
-        self.h_layout_tab_bar_hover.addWidget(self.btn_tab_bar_hover)
-        self.h_layout_tab_bar_selected.addWidget(self.lb_tab_bar_selected)
-        self.h_layout_tab_bar_selected.addWidget(self.btn_tab_bar_selected)
-        self.h_layout_tab_bar_disabled.addWidget(self.lb_tab_bar_disabled)
-        self.h_layout_tab_bar_disabled.addWidget(self.btn_tab_bar_disabled)
-        self.h_layout_tab_disabled.addWidget(self.lb_tab_disabled)
-        self.h_layout_tab_disabled.addWidget(self.btn_tab_disabled)
-
-        self.v_layout = QtWidgets.QVBoxLayout(self)
-        self.v_layout.addLayout(self.h_layout_tab_bar)
-        self.v_layout.addLayout(self.h_layout_tab_bar_text)
-        self.v_layout.addLayout(self.h_layout_tab_bar_hover)
-        self.v_layout.addLayout(self.h_layout_tab_bar_selected)
-        self.v_layout.addLayout(self.h_layout_tab_bar_disabled)
-        self.v_layout.addLayout(self.h_layout_tab_disabled)
+        self.v_layout = self.master_main.add_items_layout(QtWidgets.QVBoxLayout(self),
+                                                       layouts=[self.h_layout_tab_bar, self.h_layout_tab_bar_text,
+                                                                self.h_layout_tab_bar_hover, self.h_layout_tab_bar_selected,
+                                                                self.h_layout_tab_bar_disabled, self.h_layout_tab_disabled])
