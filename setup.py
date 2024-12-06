@@ -1,18 +1,20 @@
 from cx_Freeze import setup, Executable
-from os import listdir
 build_options={
     "optimize": 2,
-    "include_files": [f"./Images/{i}" for i in listdir("./Images")],
+    "include_files": ["images"],
     "includes": ["pynput.keyboard._xorg", "pynput.mouse._xorg"],
     "packages": ["Xlib"]
 }
 
 setup(
     name="AutoPresser",
-    version="1.6.5",
+    version="1.6.7",
     description="AutoPresser",
     author="FDroider",
     keywords=["Clicker", "Presser", "AutoPresser", "AutoClicker"],
-    options={"build_exe": build_options},
-    executables=[Executable("main.py")]
+    options={"build_exe": build_options,
+             "bdist_appimage": {},
+             "bdist_rpm": {"vendor": "FDroider",
+                           "provides": "Auto-cliker/presser mouse button or keyboard button"}},
+    executables=[{"script": "main.py", "base": "gui", "target_name": "AutoPresser", "icon": "autopresser_icon.svg"}]
 )

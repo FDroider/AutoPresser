@@ -4,7 +4,6 @@ from pyautogui import mouseDown, mouseUp
 from pyautogui import keyUp, keyDown
 from pyautogui import PyAutoGUIException
 
-
 class MouseControl:
     def __init__(self, button: str, duration: float = 0.0):
         super().__init__()

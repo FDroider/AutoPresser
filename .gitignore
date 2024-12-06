@@ -2,7 +2,7 @@
 .venv
 linux
 .idea
-Images
+images
 DataSave
 dist
 build
@@ -10,4 +10,5 @@ __pycache__
 UI/__pycache__
 # files
 pyintaller_opt.txt
-presser_app.ico
+autopresser_icon.svg
+setup_exe.py

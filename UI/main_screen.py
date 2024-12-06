@@ -1,4 +1,4 @@
-from os.path import exists, dirname, join
+from os.path import exists, join
 from os import mkdir, makedirs
 from PySide6 import QtWidgets, QtCore, QtGui
 from json import dumps, loads
@@ -9,9 +9,9 @@ class MainScreen(QtWidgets.QWidget):
 
     def __init__(self, master, starter_script):
         super().__init__(master)
-        basedir = dirname(__file__)
 
         self.master = master
+        self.app = master.master
         self.starter_script_thread = starter_script
 
         self.tab_widget = QtWidgets.QTabWidget()
@@ -42,16 +42,16 @@ class MainScreen(QtWidgets.QWidget):
 
         self.btn_settings = QtWidgets.QPushButton("Settings")
         self.btn_settings.setObjectName("QPushButton")
-        self.btn_settings.setIcon(QtGui.QIcon(join(basedir, "771203.png")))
+        self.btn_settings.setIcon(QtGui.QIcon(join(self.app.basedir, "../images/771203.png")))
         self.btn_settings.clicked.connect(self.open_settings)
         self.btn_save = QtWidgets.QPushButton("Save")
         self.btn_save.setObjectName("QPushButton")
-        self.btn_save.setIcon(QtGui.QIcon(join(basedir, "174314.png")))
+        self.btn_save.setIcon(QtGui.QIcon(join(self.app.basedir, "../images/174314.png")))
         self.btn_save.clicked.connect(self.save_settings_script)
         self.btn_save_presets = QtWidgets.QPushButton("Save preset")
         self.btn_save_presets.clicked.connect(self.open_save_dlg)
         self.btn_save_presets.setObjectName("QPushButton")
-        self.btn_save_presets.setIcon(QtGui.QIcon(join(basedir, "10057635.png")))
+        self.btn_save_presets.setIcon(QtGui.QIcon(join(self.app.basedir, "../images/10057635.png")))
         self.btn_start = QtWidgets.QPushButton("Start script")
         self.btn_start.setObjectName("QPushButton")
         self.btn_start.clicked.connect(self.start_script)
@@ -81,6 +81,7 @@ class MainScreen(QtWidgets.QWidget):
                 self.master.settings.settings_script_frame.interval_hot_key.toPlainText())
 
     def open_settings(self):
+        self.master.setWindowTitle("Settings")
         self.master.stack_widget.setCurrentIndex(1)
 
     def change_dropdown_btn(self):
@@ -109,6 +110,8 @@ class MainScreen(QtWidgets.QWidget):
         self.btn_start.setText("Stop script")
         self.btn_start.clicked.disconnect()
         self.btn_start.clicked.connect(self.stop_script)
+        self.master.master.tray.setIcon(self.master.master.tray.active_icon)
+        return True
 
     def stop_script(self):
         self.starter_script.stop()
@@ -117,6 +120,7 @@ class MainScreen(QtWidgets.QWidget):
         self.btn_start.setText("Start script")
         self.btn_start.clicked.disconnect()
         self.btn_start.clicked.connect(self.start_script)
+        self.master.master.tray.setIcon(self.master.master.tray.default_icon)
 
     def save_settings_script(self):
         if not exists("DataSave"):

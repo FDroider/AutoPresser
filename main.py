@@ -6,35 +6,59 @@ from UI.settings import Settings
 from os.path import exists
 from PySide6 import QtWidgets
 from PySide6.QtCore import QThread, QSize
-from PySide6.QtWidgets import QApplication, QMainWindow
+from PySide6.QtWidgets import (QApplication, QMainWindow,
+                               QSystemTrayIcon, QMenu)
+from PySide6.QtGui import QIcon, QAction
 from updater import check_version
 from webbrowser import open_new as web_open
 from darkdetect import isDark
+from os.path import dirname, join
 import sys
 import auto_clicker
 import press_click
 import qdarktheme
 
-
 try:
     from ctypes import windll
 
-    myappid = 'f_droider.auto_presser.1_6_5'
+    myappid = 'f_droider.auto_presser.1_6_7'
     windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 except ImportError:
     pass
 
-__version__ = "1.6.5"
+__version__ = "1.6.7"
+
+
+class Application(QApplication):
+    def __init__(self):
+        super().__init__(sys.argv)
+        self.basedir = dirname(__file__)
+        self.setStyle("Fusion")
+        self.setApplicationName("AutoPresser")
+        self.setApplicationDisplayName("AutoPresser")
+        self.setApplicationVersion(__version__)
+        self.setQuitOnLastWindowClosed(False)
+
+        self.old_style = (self.palette(), self.styleSheet())
+        self.new_style = (qdarktheme.load_palette(), qdarktheme.load_stylesheet())
+
+        self.window = MainWindow(self)
+        self.tray = SystemTrayIcon(QIcon(join(self.basedir, "../images/autopresser_icon.ico")), self)
+        self.window.show()
+        self.tray.show()
+
 
 
 class MainWindow(QMainWindow):
     __slots__ = ("main_screen", "settings", "stack_widget")
 
-    def __init__(self):
+    def __init__(self, master):
         super().__init__()
+        self.master = master
         self.text_size = 14
-        self.old_style = (app.palette(), app.styleSheet())
+        self.old_style = (self.palette(), self.styleSheet())
         self.new_style = (qdarktheme.load_palette(), qdarktheme.load_stylesheet())
+
         self.settings = Settings(self)
         self.main_screen = MainScreen(self, ScriptStartThread)
 
@@ -42,20 +66,19 @@ class MainWindow(QMainWindow):
             try:
                 with open("DataSave/config.json", "r") as f:
                     settings = loads(f.read())
-                    self.text_size = settings["text_size"] if settings.get("text_size") else self.text_size
+                    self.text_size = settings["text_size"] if settings.get("text_size") else 14
                     self.settings.settings_app_frame.dropdown_style.setCurrentText(settings.get("style"))
             except Exception as e:
                 self.show_err("Exception", f"Error load save:\n{str(e)}")
 
         self.settings.settings_app_frame.changeStyle()
-        self.setWindowTitle("Auto Clicker/Presser")
         self.stack_widget = QtWidgets.QStackedWidget(self)
         self.stack_widget.addWidget(self.main_screen)
         self.stack_widget.addWidget(self.settings)
         self.stack_widget.setCurrentIndex(0)
         self.setCentralWidget(self.stack_widget)
-        self.change_size_text(self.text_size)
         self.update_app()
+        self.change_size_text(self.text_size)
 
     def get_text_size(self):
         return self.text_size
@@ -65,14 +88,14 @@ class MainWindow(QMainWindow):
 
     def setStyleApp(self, style: str):
         if style == "Old":
-            app.setPalette(self.old_style[0])
-            app.setStyleSheet(self.old_style[1])
-            app.setStyleSheet("""QTabBar::tab:selected {background-color: #3b3b3b;}
-                                 QTabBar::tab {background-color: #575656;}
-                                 QTabWidget::pane {background-color: #3b3b3b}""")
+            self.master.setPalette(self.old_style[0])
+            self.master.setStyleSheet(self.old_style[1])
+            self.master.setStyleSheet("""QTabBar::tab:selected {background-color: #3b3b3b;}
+                                         QTabBar::tab {background-color: #575656;}
+                                         QTabWidget::pane {background-color: #3b3b3b}""")
         elif style == "New":
-            app.setPalette(self.new_style[0])
-            app.setStyleSheet(self.new_style[1])
+            self.master.setPalette(self.new_style[0])
+            self.master.setStyleSheet(self.new_style[1])
         else:
             if not exists(f"DataSave/Styles/{style}.json"):
                 self.show_err("FileNotFound", f"File '{style}.json' not found")
@@ -85,8 +108,8 @@ class MainWindow(QMainWindow):
                     for i in range(len(styles)):
                         if styles[i][:len(k)] == k:
                             styles[i] = f"{k} {v}".replace(",", ";").replace("'", "")
-                app.setPalette(self.old_style[0])
-                app.setStyleSheet("""\n""".join(styles))
+                self.master.setPalette(self.old_style[0])
+                self.master.setStyleSheet("""\n""".join(styles))
 
 
     def show_info(self, title, message):
@@ -119,6 +142,7 @@ class MainWindow(QMainWindow):
                     self._change_size_text_item(text_size, widget)
                 except Exception as e:
                     self.show_err("Exception", str(e))
+        self.resize(self.get_text_size() * 20, self.get_text_size() * 19.5)
 
     def _change_size_text_item(self, text_size, item):
         for i in range(item.layout().count()):
@@ -178,17 +202,16 @@ class MainWindow(QMainWindow):
                 self._change_size_text_item(text_size, main_widget)
             else:
                 main_widget.setStyleSheet("""* {font-size: %spx;}""" % text_size)
-        self.resize(self.get_text_size() * 20, self.get_text_size() * 19.5)
 
     def update_app(self):
         info = check_version(__version__)
         if info is None:
-            return
+            return None
         elif exists("DataSave/config.json"):
             with open("DataSave/config.json", "r") as f:
                 settings: dict = loads(f.read())
                 if info[0] == settings.get("ignore_version"):
-                    return
+                    return None
 
         message = QtWidgets.QMessageBox()
         message.setWindowTitle("Update available")
@@ -282,16 +305,60 @@ class ScriptStartThread(QThread):
             self.start_two_key(self.script_name)
 
     def stop(self):
-        run(self.script_name.stop())
-        self.loop_script.stop()
+        try:
+            run(self.script_name.stop())
+            self.loop_script.stop()
+        except Exception as e:
+            print(e)
         self.terminate()
 
 
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    app.setStyle("Fusion")
-    app.setApplicationName("AutoPresser")
-    app.setApplicationVersion(__version__)
-    window = MainWindow()
-    window.show()
+class SystemTrayIcon(QSystemTrayIcon):
+    def __init__(self, icon, parent=None):
+        super().__init__(icon=icon, parent=parent)
+        self.default_icon = self.icon()
+        self.active_icon = QIcon(join(parent.basedir, "../images/autopresser_icon_active.ico"))
+        self.main_window = parent.window
+        self.menu = QMenu()
+        self.start_script_act = QAction("Start script")
+        self.start_script_act.triggered.connect(self.start_script)
+        self.stop_script_act = QAction("Stop script")
+        self.stop_script_act.setVisible(False)
+        self.stop_script_act.triggered.connect(self.stop_script)
+        self.update_act = QAction("Check update")
+        self.update_act.triggered.connect(self.check_update)
+        self.open_act = QAction("Open")
+        self.open_act.triggered.connect(self.main_window.show)
+        self.quit_act = QAction("Close")
+        self.quit_act.triggered.connect(parent.quit)
+        self.menu.addActions((self.start_script_act, self.stop_script_act,
+                              self.menu.addSeparator(),
+                              self.update_act, self.open_act,
+                              self.menu.addSeparator(),
+                              self.quit_act))
+        self.setContextMenu(self.menu)
+
+    def start_script(self):
+        if self.main_window.main_screen.start_script() is None:
+            return
+        self.start_script_act.setVisible(False)
+        self.stop_script_act.setVisible(True)
+
+    def stop_script(self):
+        self.main_window.main_screen.stop_script()
+        self.start_script_act.setVisible(True)
+        self.stop_script_act.setVisible(False)
+
+    def check_update(self):
+        upd = self.main_window.update_app()
+        if upd is None:
+            self.main_window.show_info("Update", "You are using the latest version")
+
+
+
+def main():
+    app = Application()
     sys.exit(app.exec())
+
+if __name__ == "__main__":
+    main()

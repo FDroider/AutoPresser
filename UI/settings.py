@@ -11,7 +11,6 @@ class Settings(QtWidgets.QWidget):
     def __init__(self, master):
         super().__init__()
         self.master = master
-        self.master.setWindowTitle("Settings")
         self.tab_view = QtWidgets.QTabWidget()
         self.tab_view.setObjectName("QTabWidget")
         self.tab = QtWidgets.QWidget()
@@ -41,18 +40,20 @@ class Settings(QtWidgets.QWidget):
         self.settings_layout.addLayout(self.btn_layout)
 
     def back(self):
+        self.master.setWindowTitle("")
         self.master.stack_widget.setCurrentIndex(0)
 
     def save_settings(self):
-        settings = {"text_size": self.settings_app_frame.slider.value(),
-                    "style": self.settings_app_frame.dropdown_style.currentText()}
         if not exists("DataSave"):
             mkdir("DataSave")
         with open("DataSave/config.json", "r+") as f:
             try:
-                settings.update(loads(f.read()))
+                settings = loads(f.read())
+                settings.update({"text_size": self.settings_app_frame.slider.value(),
+                                 "style": self.settings_app_frame.dropdown_style.currentText()})
             except:
-                pass
+                settings = {"text_size": self.settings_app_frame.slider.value(),
+                            "style": self.settings_app_frame.dropdown_style.currentText()}
             f.seek(0)
             f.write(dumps(settings))
             f.truncate()
