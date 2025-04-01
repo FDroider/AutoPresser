@@ -2,7 +2,9 @@ from os.path import exists
 from os import mkdir, makedirs, listdir, remove
 from PySide6 import QtWidgets, QtCore, QtGui
 from json import dumps, loads
-
+from platform import system
+import subprocess
+import pywinctl
 
 class Settings(QtWidgets.QWidget):
     __slots__ = ("tab_widget", "settings_script_frame", "settings_app_frame",
@@ -46,21 +48,54 @@ class Settings(QtWidgets.QWidget):
     def save_settings(self):
         if not exists("DataSave"):
             mkdir("DataSave")
-        with open("DataSave/config.json", "r+") as f:
-            try:
-                settings = loads(f.read())
-                settings.update({"text_size": self.settings_app_frame.slider.value(),
-                                 "style": self.settings_app_frame.dropdown_style.currentText()})
-            except:
+        try:
+            with open("DataSave/config.json", "r+") as f:
+                try:
+                    settings = loads(f.read())
+                    settings.update({"text_size": self.settings_app_frame.slider.value(),
+                                     "style": self.settings_app_frame.dropdown_style.currentText()})
+                except:
+                    settings = {"text_size": self.settings_app_frame.slider.value(),
+                                "style": self.settings_app_frame.dropdown_style.currentText()}
+                f.seek(0)
+                f.write(dumps(settings))
+                f.truncate()
+        except FileNotFoundError:
+            with open("DataSave/config.json", "w") as f:
                 settings = {"text_size": self.settings_app_frame.slider.value(),
                             "style": self.settings_app_frame.dropdown_style.currentText()}
-            f.seek(0)
-            f.write(dumps(settings))
-            f.truncate()
+                f.write(dumps(settings))
         self.master.show_info("Success", "Settings saved")
 
     def get_slider_value(self):
         return self.settings_app_frame.slider.value()
+
+    def get_script_settings(self):
+        return (self.settings_script_frame.dlg_extra_settings.duration_one_key.toPlainText(),
+                self.settings_script_frame.dlg_extra_settings.delay_hot_key.toPlainText(),
+                self.settings_script_frame.dlg_extra_settings.interval_hot_key.toPlainText())
+
+    def set_script_settings(self, duration_one_key = None, delay_hot_key = None, interval_hot_key = None):
+        if duration_one_key:
+            self.settings_script_frame.dlg_extra_settings.duration_one_key.setText(duration_one_key)
+            self.settings_script_frame.dlg_extra_settings.duration_one_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
+        if delay_hot_key:
+            self.settings_script_frame.dlg_extra_settings.delay_hot_key.setText(delay_hot_key)
+            self.settings_script_frame.dlg_extra_settings.delay_hot_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
+        if interval_hot_key:
+            self.settings_script_frame.dlg_extra_settings.interval_hot_key.setText(interval_hot_key)
+            self.settings_script_frame.dlg_extra_settings.interval_hot_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
+
+    def get_select_window(self, index: bool = True):
+        if not index:
+            return self.settings_script_frame.dropdown_windows.currentText()
+        return self.settings_script_frame.dropdown_windows.currentIndex()
+
+    # def get_select_id_window(self):
+    #     select_window = self.get_select_window()
+    #     if select_window == 0:
+    #         return False
+    #     return self.settings_script_frame.windows_ids[select_window-1]
 
 
 class SettingsScripFrame(QtWidgets.QFrame):
@@ -69,43 +104,27 @@ class SettingsScripFrame(QtWidgets.QFrame):
     def __init__(self, master):
         super().__init__()
         self.master = master
-
-        self.lb_one_key = QtWidgets.QLabel("Settings for one key option")
-        self.duration_one_key = QtWidgets.QTextEdit()
-        self.duration_one_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-        self.duration_one_key.setPlaceholderText("Duration")
-        self.duration_one_key.setToolTip("Duration")
-        self.duration_one_key.setMinimumSize(QtCore.QSize(42, 30))
-        self.lb_hot_key = QtWidgets.QLabel("Settings for hot key option")
-        self.delay_hot_key = QtWidgets.QTextEdit()
-        self.delay_hot_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-        self.delay_hot_key.setPlaceholderText("Delay")
-        self.delay_hot_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-        self.delay_hot_key.setToolTip("Delay")
-        self.delay_hot_key.setMinimumSize(QtCore.QSize(42, 30))
-        self.interval_hot_key = QtWidgets.QTextEdit()
-        self.interval_hot_key.setPlaceholderText("Interval")
-        self.interval_hot_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-        self.interval_hot_key.setToolTip("Interval")
-        self.interval_hot_key.setMinimumSize(QtCore.QSize(42, 30))
+        self.selected_window = None
+        self.dlg_extra_settings = ExtraSettings(self.master)
+        self.btn_extra_settings = QtWidgets.QPushButton("Open extra settings")
+        self.btn_extra_settings.clicked.connect(self.dlg_extra_settings.show)
+        self.dropdown_windows = QtWidgets.QComboBox()
+        self.dropdown_windows.addItems(self.show_windows())
+        self.dropdown_windows.currentIndexChanged.connect(self.set_select_window)
+        self.dropdown_windows.setMaximumSize(QtCore.QSize(250, 10))
         self.dropdown_presets = QtWidgets.QComboBox()
         self.dropdown_presets.addItems(self.show_presets())
         self.dropdown_presets.setToolTip("Preset")
         self.btn_select = QtWidgets.QPushButton("Select")
-        self.btn_select.clicked.connect(
-            lambda: self.master.main_screen.load_preset(self.dropdown_presets.currentText()))
+        self.btn_select.clicked.connect(lambda: self.master.main_screen.load_preset(self.dropdown_presets.currentText()))
 
-        self.h_one_key_l = self.master.create_layout(widgets=[self.duration_one_key])
-        self.h_hot_key_l = self.master.create_layout(widgets=[self.delay_hot_key, self.interval_hot_key])
         self.h_presets_l = self.master.create_layout(widgets=[self.dropdown_presets, self.btn_select])
+        self.v_layout = self.master.create_layout("v", widgets=[self.btn_extra_settings, self.dropdown_windows] ,
+                                                  layouts=[self.h_presets_l])
+        self.setLayout(self.v_layout)
 
-        self.v_layout = QtWidgets.QVBoxLayout(self)
-
-        self.v_layout.addWidget(self.lb_one_key)
-        self.v_layout.addLayout(self.h_one_key_l)
-        self.v_layout.addWidget(self.lb_hot_key)
-        self.v_layout.addLayout(self.h_hot_key_l)
-        self.v_layout.addLayout(self.h_presets_l)
+    def resize_dropdown(self, size):
+        self.dropdown_windows.setMaximumSize(QtCore.QSize(int(size.width()/1.15), int(size.height()/18)))
 
     def show_presets(self):
         presets = []
@@ -118,10 +137,74 @@ class SettingsScripFrame(QtWidgets.QFrame):
             return ("None",)
         return presets
 
+    def show_windows(self):
+        windows = ["auto"]
+        main_system = system()
+        if main_system.lower() == "linux":
+            try:
+                output = subprocess.check_output(['xprop', '-root', '_NET_CLIENT_LIST']).decode()
+                w_ids = output.split("# ")[1].split(", ")
+                for w_id in w_ids:
+                    title_output = subprocess.check_output(['xprop', '-id', w_id, 'WM_NAME']).decode()
+                    title = title_output.split('"')
+                    if len(title) >= 3:
+                        windows.append(title[1])
+            except FileNotFoundError:
+                self.master.show_err("FileNotFoundError", "xprop not found. Install it for window search to work")
+            except Exception as e:
+                self.master.show_err("Unknown error", f"{e}")
+        elif main_system.lower() == "windows":
+            wins = pywinctl.getAllAppsNames()
+            for w in wins:
+                windows.append(w)
+        return windows
+
+    def update_list_windows(self):
+        self.dropdown_windows.currentIndexChanged.disconnect()
+        self.dropdown_windows.clear()
+        windows = self.show_windows()
+        self.dropdown_windows.addItems(windows)
+        if self.selected_window in windows:
+            self.dropdown_windows.setCurrentText(self.selected_window)
+        self.dropdown_windows.currentIndexChanged.connect(self.set_select_window)
+
     def update_list_presets(self):
         self.dropdown_presets.clear()
         self.dropdown_presets.addItems(self.show_presets())
 
+    def set_select_window(self):
+        self.selected_window = self.dropdown_windows.currentText()
+
+class ExtraSettings(QtWidgets.QDialog):
+    def __init__(self, master):
+        super().__init__()
+        self.master = master
+        self.lb_one_key = QtWidgets.QLabel("Settings for one key option")
+        self.duration_one_key = QtWidgets.QTextEdit()
+        self.duration_one_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
+        self.duration_one_key.setPlaceholderText("Duration")
+        self.duration_one_key.setToolTip("Duration")
+        self.lb_hot_key = QtWidgets.QLabel("Settings for hot key option")
+        self.delay_hot_key = QtWidgets.QTextEdit()
+        self.delay_hot_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
+        self.delay_hot_key.setPlaceholderText("Delay")
+        self.delay_hot_key.setToolTip("Delay")
+        self.interval_hot_key = QtWidgets.QTextEdit()
+        self.interval_hot_key.setPlaceholderText("Interval")
+        self.interval_hot_key.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
+        self.interval_hot_key.setToolTip("Interval")
+        self.btn_close = QtWidgets.QPushButton("Close")
+        self.btn_close.clicked.connect(self.close)
+
+        self.h_one_key_l = self.master.create_layout(widgets=[self.duration_one_key])
+        self.h_hot_key_l = self.master.create_layout(widgets=[self.delay_hot_key, self.interval_hot_key])
+        self.v_layout = self.master.create_layout("v")
+        self.v_layout.addWidget(self.lb_one_key)
+        self.v_layout.addLayout(self.h_one_key_l)
+        self.v_layout.addWidget(self.lb_hot_key)
+        self.v_layout.addLayout(self.h_hot_key_l)
+        self.v_layout.addWidget(self.btn_close)
+        self.setLayout(self.v_layout)
 
 class SettingsAppFrame(QtWidgets.QFrame):
     __slots__ = ("v_layout",)
@@ -150,7 +233,7 @@ class SettingsAppFrame(QtWidgets.QFrame):
         self.slider.setValue(self.master.get_text_size())
         self.slider.setMinimum(11)
         self.slider.setMaximum(25)
-        self.slider.sliderReleased.connect(lambda: self.master.change_size_text(self.master.text_size))
+        self.slider.sliderReleased.connect(lambda: self.master.set_text_size(self.slider.value()))
         self.slider.valueChanged.connect(self.change_size)
         self.slider.setToolTip(f"{self.slider.value()}px")
 
@@ -167,7 +250,6 @@ class SettingsAppFrame(QtWidgets.QFrame):
     def change_size(self):
         self.lb_text_size.setStyleSheet("""QLabel {font-size: %spx;}""" % self.slider.value())
         self.slider.setToolTip(f"{self.slider.value()}px")
-        self.master.set_text_size(self.slider.value())
 
     def show_styles(self):
         styles = ["Default", "Old version"]
@@ -197,12 +279,12 @@ class SettingsAppFrame(QtWidgets.QFrame):
 
     def changeStyle(self):
         if self.dropdown_style.currentIndex() == 1:
-            self.master.setStyleApp("Old")
+            self.master.set_style_app("Old")
         elif self.dropdown_style.currentIndex() == 0:
-            self.master.setStyleApp("New")
+            self.master.set_style_app("New")
         else:
             try:
-                self.master.setStyleApp(self.dropdown_style.currentText())
+                self.master.set_style_app(self.dropdown_style.currentText())
             except FileNotFoundError:
                 self.update_styles()
 
@@ -224,26 +306,27 @@ class SettingsColor(QtWidgets.QDialog):
         self.master_main = master.master
         self.size_var = self.master_main.get_text_size()
         self.resize(self.size_var * 20, self.size_var * 15.4)
-        self.colors = {}
+        self.styles = {}
         self.app = QtWidgets.QApplication.instance()
         self.dlg_color = QtWidgets.QColorDialog()
         self.setWindowTitle("Create style")
-        self.style_name = QtWidgets.QTextEdit()
-        self.style_name.setMaximumSize(QtCore.QSize(text_size * 20, int((text_size / 2) * 5)))
-        self.style_name.setStyleSheet("""* {font-size: %spx;
+        self.style_name_fld = QtWidgets.QTextEdit()
+        # self.style_name_fld.setMaximumSize(QtCore.QSize(text_size * 20, int((text_size / 2) * 5)))
+        self.style_name_fld.setMaximumHeight(int((text_size / 2) * 5))
+        self.style_name_fld.setStyleSheet("""* {font-size: %spx;
                                             border: 1.8px solid black;
                                             border-radius: 5px;}
                                          *:focus {border: 1px solid rgba(255, 255, 255, 70);}""" % text_size)
-        self.style_name.setPlaceholderText("Name style")
-        self.style_name.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
-        self.style_name.setMinimumSize(QtCore.QSize(50, 35))
+        self.style_name_fld.setPlaceholderText("Name style")
+        self.style_name_fld.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
+        self.style_name_fld.setMinimumSize(QtCore.QSize(50, 35))
 
         if style_name:
             with open(f"DataSave/Styles/{style_name}.json", "r") as f:
-                self.colors = loads(f.read())
+                self.styles = loads(f.read())
             self._update_stylesheet()
-            self.style_name.setText(style_name)
-            self.style_name.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
+            self.style_name_fld.setText(style_name)
+            self.style_name_fld.setAlignment(QtGui.Qt.AlignmentFlag.AlignCenter)
 
         self.lb_window = QtWidgets.QLabel("Window")
         self.btn_window = QtWidgets.QPushButton(text="Select color")
@@ -299,7 +382,7 @@ class SettingsColor(QtWidgets.QDialog):
         self.h_layout_tab = self.master_main.create_layout(widgets=[self.lb_tab, self.btn_tab])
 
         self.v_layout = QtWidgets.QVBoxLayout(self)
-        self.v_layout.addWidget(self.style_name)
+        self.v_layout.addWidget(self.style_name_fld)
         self.v_layout.addLayout(self.h_layout_window)
         self.v_layout.addLayout(self.h_layout_button)
         self.v_layout.addWidget(self.btn_button_extra)
@@ -318,15 +401,15 @@ class SettingsColor(QtWidgets.QDialog):
 
     def _stylesheet_select(self, color=None, obj_name: str = None, options: tuple = None):
         for i in options:
-            if self.colors.get(obj_name):
-                self.colors.get(obj_name).update({i: f"{color.name()}"})
+            if self.styles.get(obj_name):
+                self.styles.get(obj_name).update({i: f"{color.name()}"})
             else:
-                self.colors.update({obj_name: {i: f"{color.name()}"}})
+                self.styles.update({obj_name: {i: f"{color.name()}"}})
         self._update_stylesheet()
 
     def _update_stylesheet(self):
         styles = []
-        for k, v in self.colors.items():
+        for k, v in self.styles.items():
             styles.append(f"{k} {v}".replace(",", ";").replace("'", ""))
             for i in range(len(styles)):
                 if styles[i][:len(k)] == k:
@@ -336,14 +419,14 @@ class SettingsColor(QtWidgets.QDialog):
         self.update()
 
     def accept(self):
-        if self.style_name.toPlainText().replace(" ", "") == "":
+        if self.style_name_fld.toPlainText().replace(" ", "") == "":
             self.master_main.show_err("ValueError", "Enter name for style!")
             return
 
         if not exists("DataSave/Styles"):
             makedirs("DataSave/Styles")
-        with open(f"DataSave/Styles/{self.style_name.toPlainText()}.json", "w") as f:
-            f.write(dumps(self.colors))
+        with open(f"DataSave/Styles/{self.style_name_fld.toPlainText()}.json", "w") as f:
+            f.write(dumps(self.styles))
 
         self.master.update_styles()
         self.close()
