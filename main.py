@@ -1,32 +1,22 @@
-from asyncio import new_event_loop, set_event_loop
-from asyncio import run
-from json import loads, dumps
 from UI.main_screen import MainScreen, OneKeyFrame, HotKeyFrame
 from UI.settings import Settings
-from os.path import exists
 from PySide6 import QtWidgets
 from PySide6.QtCore import QThread, QSize
 from PySide6.QtWidgets import (QApplication, QMainWindow,
                                QSystemTrayIcon, QMenu)
 from PySide6.QtGui import QIcon, QAction
+from darkdetect import isDark
 from updater import check_version
 from webbrowser import open_new as web_open
-from darkdetect import isDark
-from os.path import dirname, join
+from asyncio import new_event_loop, set_event_loop, run
+from json import loads, dumps
+from os.path import dirname, join, exists
 import sys
 import auto_clicker
 import press_click
 import qdarktheme
 
-try:
-    from ctypes import windll
-
-    myappid = 'f_droider.auto_presser.1_6_7'
-    windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-except ImportError:
-    pass
-
-__version__ = "1.6.7"
+__version__ = "1.7.0"
 
 
 class Application(QApplication):
@@ -78,15 +68,20 @@ class MainWindow(QMainWindow):
         self.stack_widget.setCurrentIndex(0)
         self.setCentralWidget(self.stack_widget)
         self.update_app()
-        self.change_size_text(self.text_size)
+        self._change_size_text(self.text_size)
+        self._change_size_text_item(self.text_size, self.settings.settings_script_frame.dlg_extra_settings.layout())
+
+    def resizeEvent(self, event, /):
+        self.settings.settings_script_frame.resize_dropdown(event.size())
 
     def get_text_size(self):
         return self.text_size
 
     def set_text_size(self, size):
         self.text_size = size
+        self._change_size_text(size)
 
-    def setStyleApp(self, style: str):
+    def set_style_app(self, style: str):
         if style == "Old":
             self.master.setPalette(self.old_style[0])
             self.master.setStyleSheet(self.old_style[1])
@@ -100,6 +95,7 @@ class MainWindow(QMainWindow):
             if not exists(f"DataSave/Styles/{style}.json"):
                 self.show_err("FileNotFound", f"File '{style}.json' not found")
                 raise FileNotFoundError
+            # Load custom style
             with open(f"DataSave/Styles/{style}.json", "r") as f:
                 style = loads(f.read())
                 styles = []
@@ -120,12 +116,11 @@ class MainWindow(QMainWindow):
 
     def show_err(self, title, message):
         message_box = QtWidgets.QMessageBox()
-        message_box.critical(self, title, message,
-                             QtWidgets.QMessageBox.StandardButton.Ok)
+        message_box.critical(self, title, message, QtWidgets.QMessageBox.StandardButton.Ok)
         if message_box == QtWidgets.QMessageBox.StandardButton.Ok:
             message_box.close()
 
-    def change_size_text(self, text_size):
+    def _change_size_text(self, text_size):
         for i in range(self.layout().count()):
             widget = self.layout().itemAt(i).widget()
             if widget is None:
@@ -154,24 +149,28 @@ class MainWindow(QMainWindow):
             if isinstance(main_widget, QtWidgets.QTabWidget):
                 if not isDark():
                     main_widget.setStyleSheet("""QTabWidget {font-size: %spx;}
-                                                             QTabWidget::tab-bar {alignment: center;}
-                                                             QTabWidget::pane {border: 2px solid rgba(181, 181, 181, 70);
-                                                             border-radius: 10px; background-color: rgba(181, 181, 181, 70)}
-                                                             QTabBar::tab {border: 1px solid rgba(255, 255, 255, 20);
-                                                             background-color: rgba(181, 181, 181, 70);
-                                                             border-top-left-radius: 5px; border-top-right-radius: 5px; 
-                                                             padding: 5px; margin-bottom: 5px;}
-                                                             QTabBar::tab:selected {margin-bottom: 0px;
-                                                             background-color: rgba(181, 181, 181, 100)}""" % text_size)
+                                                 QTabWidget::tab-bar {alignment: center;}
+                                                 QTabWidget::pane {border: 2px solid rgba(181, 181, 181, 70);
+                                                                   border-radius: 10px; 
+                                                                   background-color: rgba(181, 181, 181, 70)}
+                                                 QTabBar::tab {border: 1px solid rgba(255, 255, 255, 20);
+                                                               background-color: rgba(181, 181, 181, 70);
+                                                               border-top-left-radius: 5px; 
+                                                               border-top-right-radius: 5px; 
+                                                               padding: 5px; margin-bottom: 5px;}
+                                                 QTabBar::tab:selected {margin-bottom: 0px;
+                                                                        background-color: rgba(181, 181, 181, 100)}""" % text_size)
                 else:
                     main_widget.setStyleSheet("""QTabWidget {font-size: %spx;}
-                                                             QTabWidget::tab-bar {alignment: center;}
-                                                             QTabWidget::pane {border: 1.5px solid rgba(163, 163, 163, 50); 
-                                                             border-radius: 10px}
-                                                             QTabBar::tab {border: 1px solid rgba(163, 163, 163, 20); 
-                                                             border-top-left-radius: 5px; border-top-right-radius: 5px; 
-                                                             padding: 5px; margin-bottom: 5px;}
-                                                             QTabBar::tab:selected {margin-bottom: 0px;}""" % text_size)
+                                                 QTabWidget::tab-bar {alignment: center;}
+                                                 QTabWidget::pane {border: 1.5px solid rgba(163, 163, 163, 50); 
+                                                                   border-radius: 10px}
+                                                 QTabBar::tab {border: 1px solid rgba(163, 163, 163, 20); 
+                                                               border-top-left-radius: 5px; 
+                                                               border-top-right-radius: 5px; 
+                                                               padding: 5px; 
+                                                               margin-bottom: 5px;}
+                                                 QTabBar::tab:selected {margin-bottom: 0px;}""" % text_size)
                 main_widget.widget(0).setStyleSheet("""* {font-size: %spx;}""" % text_size)
                 main_widget.widget(1).setStyleSheet("""* {font-size: %spx;}""" % text_size)
                 self._change_size_text_item(text_size, main_widget.widget(0))
@@ -182,7 +181,7 @@ class MainWindow(QMainWindow):
                     or isinstance(main_widget, QtWidgets.QFormLayout):
                 self._change_size_text_item(text_size, main_widget)
             elif isinstance(main_widget, QtWidgets.QTextEdit):
-                main_widget.setMaximumSize(QSize(self.settings.get_slider_value() * 3.5,
+                main_widget.setFixedSize(QSize(self.settings.get_slider_value() * 3.5,
                                                  int((self.settings.get_slider_value() / 2) * 5.1)))
                 if isDark():
                     main_widget.setStyleSheet("""* {font-size: %spx;
@@ -196,7 +195,7 @@ class MainWindow(QMainWindow):
                                                  *:focus {border: 1px solid rgba(128, 128, 128, 90);}""" % text_size)
 
                 format_t = main_widget.document().rootFrame().frameFormat()
-                format_t.setTopMargin(self.get_text_size() / 4)
+                format_t.setTopMargin(self.get_text_size() / 3)
                 main_widget.document().rootFrame().setFrameFormat(format_t)
             elif isinstance(main_widget, QtWidgets.QDialog):
                 self._change_size_text_item(text_size, main_widget)
@@ -263,53 +262,58 @@ class MainWindow(QMainWindow):
 
 
 class ScriptStartThread(QThread):
-    def __init__(self, master, type_key: int, script: int):
+    def __init__(self, master, type_key: int, script: int, window_name):
         super().__init__()
-        self.parent = master
+        self.master = master
         self.type_key = type_key
         self.script = script
         self.script_name = press_click if self.script == 0 else auto_clicker
+        self.window_name = window_name
         self.loop_script = new_event_loop()
 
     def start_one_key(self, script_name):
-        if self.parent.dropdown_btn.currentIndex() == 3:
+        if self.master.dropdown_btn.currentIndex() == 3:
             self.loop_script.run_until_complete(
-                script_name.start_one_key(self.parent.one_key_frame.entry.toPlainText(),
-                                          self.parent.entry.toPlainText().lower(),
-                                          self.parent.get_options_one_key()))
+                script_name.start_one_key(self.master.one_key_frame.entry.toPlainText(),
+                                          self.master.entry.toPlainText().lower(),
+                                          self.master.get_options_one_key(), self.window_name))
         else:
             self.loop_script.run_until_complete(
-                script_name.start_one_key(self.parent.one_key_frame.entry.toPlainText(),
-                                          self.parent.dropdown_btn.currentText().lower(),
-                                          self.parent.get_options_one_key()))
+                script_name.start_one_key(self.master.one_key_frame.entry.toPlainText(),
+                                          self.master.dropdown_btn.currentText().lower(),
+                                          self.master.get_options_one_key(), self.window_name))
 
     def start_two_key(self, script_name):
-        if self.parent.dropdown_btn.currentIndex() == 3:
+        if self.master.dropdown_btn.currentIndex() == 3:
             self.loop_script.run_until_complete(
-                script_name.start_two_keys(self.parent.hot_key_frame.dropdown.currentText().lower(),
-                                           self.parent.hot_key_frame.entry.toPlainText().lower(),
-                                           self.parent.entry.toPlainText().lower(),
-                                           self.parent.get_options_hot_key()))
+                script_name.start_two_keys(self.master.hot_key_frame.dropdown.currentText().lower(),
+                                           self.master.hot_key_frame.entry.toPlainText().lower(),
+                                           self.master.entry.toPlainText().lower(),
+                                           self.master.get_options_hot_key(), self.window_name))
         else:
             self.loop_script.run_until_complete(
-                script_name.start_two_keys(self.parent.hot_key_frame.dropdown.currentText().lower(),
-                                           self.parent.hot_key_frame.entry.toPlainText().lower(),
-                                           self.parent.dropdown_btn.currentText().lower(),
-                                           self.parent.get_options_hot_key()))
+                script_name.start_two_keys(self.master.hot_key_frame.dropdown.currentText().lower(),
+                                           self.master.hot_key_frame.entry.toPlainText().lower(),
+                                           self.master.dropdown_btn.currentText().lower(),
+                                           self.master.get_options_hot_key(), self.window_name))
 
     def run(self):
         set_event_loop(self.loop_script)
-        if self.type_key == 0:
-            self.start_one_key(self.script_name)
-        else:
-            self.start_two_key(self.script_name)
+        try:
+            if self.type_key == 0:
+                self.start_one_key(self.script_name)
+            else:
+                self.start_two_key(self.script_name)
+        except FileNotFoundError as e:
+            self.master.master.show_err("FileNotFoundError", f"{e}")
+            run(self.script_name.stop())
 
     def stop(self):
         try:
             run(self.script_name.stop())
             self.loop_script.stop()
         except Exception as e:
-            print(e)
+            self.master.master.show_err("Exception", f"{e}")
         self.terminate()
 
 
@@ -353,7 +357,6 @@ class SystemTrayIcon(QSystemTrayIcon):
         upd = self.main_window.update_app()
         if upd is None:
             self.main_window.show_info("Update", "You are using the latest version")
-
 
 
 def main():
