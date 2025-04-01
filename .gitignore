@@ -11,4 +11,4 @@ UI/__pycache__
 # files
 pyintaller_opt.txt
 autopresser_icon.svg
-setup_exe.py
+test.py
