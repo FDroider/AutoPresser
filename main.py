@@ -4,7 +4,7 @@ from PySide6 import QtWidgets
 from PySide6.QtCore import QThread, QSize
 from PySide6.QtWidgets import (QApplication, QMainWindow,
                                QSystemTrayIcon, QMenu)
-from PySide6.QtGui import QIcon, QAction
+from PySide6.QtGui import QIcon, QAction, Qt
 from darkdetect import isDark
 from updater import check_version
 from webbrowser import open_new as web_open
@@ -70,6 +70,11 @@ class MainWindow(QMainWindow):
         self.update_app()
         self._change_size_text(self.text_size)
         self._change_size_text_item(self.text_size, self.settings.settings_script_frame.dlg_extra_settings.layout())
+
+    def text_change(self, item: QtWidgets.QTextEdit):
+        if len(item.toPlainText()) > 1:
+            item.setText(item.toPlainText()[1])
+            item.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     def resizeEvent(self, event, /):
         self.settings.settings_script_frame.resize_dropdown(event.size())
@@ -277,6 +282,12 @@ class ScriptStartThread(QThread):
                 script_name.start_one_key(self.master.one_key_frame.entry.toPlainText(),
                                           self.master.entry.toPlainText().lower(),
                                           self.master.get_options_one_key(), self.window_name))
+        elif self.master.dropdown_btn.currentIndex() == 4:
+            self.loop_script.run_until_complete(
+                script_name.start_one_key(self.master.one_key_frame.entry.toPlainText(),
+                                          self.master.get_buttons(),
+                                          self.master.get_options_one_key(),
+                                          self.window_name))
         else:
             self.loop_script.run_until_complete(
                 script_name.start_one_key(self.master.one_key_frame.entry.toPlainText(),
@@ -284,17 +295,23 @@ class ScriptStartThread(QThread):
                                           self.master.get_options_one_key(), self.window_name))
 
     def start_two_key(self, script_name):
+        keys = self.master.hot_key_frame.get_keys()
+        for i in range(len(keys)):
+            if len(keys[i]) > 1:
+                keys[i] = f"<{keys[i]}>"
+        hot_key = "+".join(keys)
+
         if self.master.dropdown_btn.currentIndex() == 3:
             self.loop_script.run_until_complete(
-                script_name.start_two_keys(self.master.hot_key_frame.dropdown.currentText().lower(),
-                                           self.master.hot_key_frame.entry.toPlainText().lower(),
-                                           self.master.entry.toPlainText().lower(),
+                script_name.start_hot_keys(hot_key, self.master.entry.toPlainText().lower(),
+                                           self.master.get_options_hot_key(), self.window_name))
+        elif self.master.dropdown_btn.currentIndex() == 4:
+            self.loop_script.run_until_complete(
+                script_name.start_hot_keys(hot_key, self.master.get_buttons(),
                                            self.master.get_options_hot_key(), self.window_name))
         else:
             self.loop_script.run_until_complete(
-                script_name.start_two_keys(self.master.hot_key_frame.dropdown.currentText().lower(),
-                                           self.master.hot_key_frame.entry.toPlainText().lower(),
-                                           self.master.dropdown_btn.currentText().lower(),
+                script_name.start_hot_keys(hot_key, self.master.dropdown_btn.currentText().lower(),
                                            self.master.get_options_hot_key(), self.window_name))
 
     def run(self):
