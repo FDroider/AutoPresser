@@ -1,6 +1,6 @@
 from time import sleep
 from pynput.keyboard import Listener, KeyCode, HotKey
-from pyautogui import mouseDown, mouseUp
+from pyautogui import mouseDown, mouseUp, hotkey
 from pyautogui import keyUp, keyDown
 from pyautogui import PyAutoGUIException
 from subprocess import run, check_output
@@ -14,29 +14,44 @@ except:
     pass
 
 class MouseControl:
-    def __init__(self, button: str, duration: float = 0.0):
-        self.btn_click = button.lower()
-        if self.btn_click in ("shift", "alt", "ctrl"):
-            self.btn_click = f"{button.lower()}left"
+    def __init__(self, button, duration: float = 0.0):
+        if isinstance(button, list):
+            for i in range(len(button)):
+                b = button[i].lower()
+                if b in ("shift", "alt", "ctrl"):
+                    button[i] = f"{b}left"
+            self.btn_click = button
+        else:
+            self.btn_click = button.lower()
+            if self.btn_click in ("shift", "alt", "ctrl"):
+                self.btn_click = f"{button.lower()}left"
         self.duration = duration
         self.mouse_pressed = False
 
     def btn_down(self):
         self.mouse_pressed = True
-        try:
-            mouseDown(button=self.btn_click)
-        except PyAutoGUIException:
-            keyDown(self.btn_click)
+        if isinstance(self.btn_click, list):
+            for b in self.btn_click:
+                keyDown(b)
+        else:
+            try:
+                mouseDown(button=self.btn_click)
+            except PyAutoGUIException:
+                keyDown(self.btn_click)
         if self.duration != 0.0:
             sleep(self.duration)
             self.btn_up()
 
     def btn_up(self):
         self.mouse_pressed = False
-        try:
-            mouseUp(button=self.btn_click)
-        except PyAutoGUIException:
-            keyUp(self.btn_click)
+        if isinstance(self.btn_click, list):
+            for b in self.btn_click:
+                keyUp(b)
+        else:
+            try:
+                mouseUp(button=self.btn_click)
+            except PyAutoGUIException:
+                keyUp(self.btn_click)
 
     def start(self):
         if self.mouse_pressed is True:
@@ -49,10 +64,11 @@ class MouseControl:
 
 
 class MouseControlWindowLinux(MouseControl):
-    def __init__(self, button: str, duration: float, window_name: str):
+    def __init__(self, button, duration: float, window_name: str):
         super().__init__(button, duration)
         self.window_id = check_output(["xdotool", "search", "--name", f"{window_name}"]).split()[0].decode()
-        self.check_button()
+        if not isinstance(self.btn_click, list):
+            self.check_button()
 
     def check_button(self):
         if self.btn_click == "left":
@@ -66,8 +82,12 @@ class MouseControlWindowLinux(MouseControl):
         self.mouse_pressed = True
         try:
             if self.btn_click in ("left", "right", "middle"):
-                    run(["xdotool", "mousedown", f"--window", f"{self.window_id}", f"{self.btn_click}"])
+                run(["xdotool", "mousedown", f"--window", f"{self.window_id}", f"{self.btn_click}"])
             else:
+                if isinstance(self.btn_click, list):
+                    for b in self.btn_click:
+                        run(["xdotool", "keydown", f"--window", f"{self.window_id}", f"{b}"])
+                else:
                     run(["xdotool", "keydown", f"--window", f"{self.window_id}", f"{self.btn_click}"])
         except FileNotFoundError:
             raise FileNotFoundError("Not found xdotool. Please install it for correct work app")
@@ -79,8 +99,12 @@ class MouseControlWindowLinux(MouseControl):
         self.mouse_pressed = False
         try:
             if self.btn_click in ("left", "right", "middle"):
-                    run(["xdotool", "mouseup", f"--window", f"{self.window_id}", f"{self.btn_click}"])
+                run(["xdotool", "mouseup", f"--window", f"{self.window_id}", f"{self.btn_click}"])
             else:
+                if isinstance(self.btn_click, list):
+                    for b in self.btn_click[::-1]:
+                        run(["xdotool", "keyup", f"--window", f"{self.window_id}", f"{b}"])
+                else:
                     run(["xdotool", "keyup", f"--window", f"{self.window_id}", f"{self.btn_click}"])
         except FileNotFoundError:
             raise FileNotFoundError("Not found xdotool. Please install it for correct to work app")
@@ -102,6 +126,10 @@ class MouseControlWindow(MouseControl):
             win32api.PostMessage(self.window_handel, win32con.WM_RBUTTONDOWN, 1, self.lParam)
         elif self.btn_click == "middle":
             win32api.PostMessage(self.window_handel, win32con.WM_MBUTTONDOWN, 1, self.lParam)
+        elif isinstance(self.btn_click, list):
+            for b in self.btn_click:
+                win32api.PostMessage(self.window_handel, win32con.WM_KEYDOWN, hex(win32api.VkKeyScan(b)),
+                                     self.lParam)
         else:
             win32api.PostMessage(self.window_handel, win32con.WM_KEYDOWN, hex(win32api.VkKeyScan(self.btn_click)),
                                  self.lParam)
@@ -116,6 +144,10 @@ class MouseControlWindow(MouseControl):
             win32api.PostMessage(self.window_handel, win32con.WM_RBUTTONUP, 0, self.lParam)
         elif self.btn_click == "middle":
             win32api.PostMessage(self.window_handel, win32con.WM_MBUTTONUP, 0, self.lParam)
+        elif isinstance(self.btn_click, list):
+            for b in self.btn_click[::-1]:
+                win32api.PostMessage(self.window_handel, win32con.WM_KEYUP, hex(win32api.VkKeyScan(b)),
+                                     self.lParam)
         else:
             win32api.PostMessage(self.window_handel, win32con.WM_KEYUP, hex(win32api.VkKeyScan(self.btn_click)),
                                  self.lParam)
@@ -144,7 +176,7 @@ async def start_one_key(start_key, button, *args):
         listener.join()
 
 
-async def start_two_keys(start_key, start_two_key, button, *args):
+async def start_hot_keys(hot_key, button, *args):
     global app, listener
 
     duration = 0.0 if args[0][0] == "" or float(args[0][0]) < 0.0 else float(args[0][0])
@@ -159,13 +191,13 @@ async def start_two_keys(start_key, start_two_key, button, *args):
     else:
         app = MouseControl(button, duration)
 
-    hotkey = HotKey((HotKey.parse(f"<{start_key}>+{start_two_key}")),
+    hotkey = HotKey((HotKey.parse(hot_key)),
                     on_activate=app.start)
 
     def on_press(f):
         return lambda k: f(listener.canonical(k))
 
-    with Listener(on_press=on_press(hotkey.press)) as listener:
+    with Listener(on_press=on_press(hotkey.press), on_release=on_press(hotkey.release)) as listener:
         listener.join()
 
 
