@@ -16,7 +16,7 @@ import auto_clicker
 import press_click
 import qdarktheme
 
-__version__ = "1.7.0"
+__version__ = "1.7.2"
 
 
 class Application(QApplication):
