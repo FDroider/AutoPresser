@@ -8,7 +8,7 @@ build_options={
 
 setup(
     name="AutoPresser",
-    version="1.7.0",
+    version="1.7.2",
     description="Auto presser and clicker in one app",
     author="FDroider",
     keywords=["Clicker", "Presser", "AutoPresser", "AutoClicker"],
