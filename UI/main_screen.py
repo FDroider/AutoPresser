@@ -29,7 +29,7 @@ class MainScreen(QtWidgets.QWidget):
                                                                                                                  "") != ""
             else self.master.show_err("ValueError", "Enter file name!"))
         self.dlg_btn_box.rejected.connect(self.dlg_preset.close)
-        self.dlg_preset.setLayout(self.master.create_layout("v", widgets=[self.dlg_filename, self.dlg_btn_box]))
+        self.dlg_preset.setLayout(self.master.create_layout("v", [self.dlg_filename, self.dlg_btn_box]))
 
         self.tab_widget = QtWidgets.QTabWidget()
         self.tab_widget.setObjectName("QTabWidget")
@@ -93,14 +93,12 @@ class MainScreen(QtWidgets.QWidget):
         self.dropdown_script.addItems(["Presser", "AutoClicker"])
         self.dropdown_script.setCurrentIndex(0)
 
-        self.group_btn = self.master.create_layout(widgets=[self.btn_settings, self.btn_save, self.btn_save_presets])
-        self.key_layout = self.master.create_layout(widgets=[self.dropdown_btn, self.entry, self.btn_add, self.btn_remove])
-        self.chose_script_l = self.master.create_layout(widgets=[self.btn_start, self.dropdown_script])
-        self.v_layout = self.master.add_items_layout(QtWidgets.QVBoxLayout(self),
-                                                     widgets=[self.tab_widget],
-                                                     layouts=[self.key_layout, self.custom_key_layout,
-                                                              self.group_btn, self.chose_script_l])
-
+        self.group_btn = self.master.create_layout(items=[self.btn_settings, self.btn_save, self.btn_save_presets])
+        self.key_layout = self.master.create_layout(items=[self.dropdown_btn, self.entry, self.btn_add, self.btn_remove])
+        self.chose_script_l = self.master.create_layout(items=[self.btn_start, self.dropdown_script])
+        self.v_layout = self.master.create_layout("v", [self.tab_widget, self.key_layout, self.custom_key_layout,
+                                                        self.group_btn, self.chose_script_l])
+        self.setLayout(self.v_layout)
         self.tab.setLayout(self.one_key_frame.layout())
         self.tab_2.setLayout(self.hot_key_frame.layout())
 
@@ -329,8 +327,8 @@ class HotKeyFrame(QtWidgets.QFrame):
         self.btn_remove = QtWidgets.QPushButton()
         self.btn_remove.setIcon(QtGui.QIcon.fromTheme(QtGui.QIcon.ThemeIcon.ListRemove))
         self.btn_remove.clicked.connect(self.dlg.remove_item)
-        self.h_btn_layout = self.master.create_layout(widgets=[self.btn_add, self.btn_remove])
-        self.v_layout = self.master.create_layout("v", layouts=[self.h_btn_layout, self.h_layout])
+        self.h_btn_layout = self.master.create_layout(items=[self.btn_add, self.btn_remove])
+        self.v_layout = self.master.create_layout("v", [self.h_btn_layout, self.h_layout])
         self.setLayout(self.v_layout)
 
     def get_keys(self):
@@ -370,8 +368,8 @@ class AddDialog(QtWidgets.QDialog):
         self.btn_close = QtWidgets.QPushButton("Close")
         self.btn_close.clicked.connect(self.close)
 
-        self.h_layout = self.master.create_layout(widgets=[self.btn_add_entry, self.btn_add_dropdown])
-        self.v_layout = self.master.create_layout("v", layouts=[self.h_layout])
+        self.h_layout = self.master.create_layout(items=[self.btn_add_entry, self.btn_add_dropdown])
+        self.v_layout = self.master.create_layout("v", [self.h_layout])
         self.v_layout.addWidget(self.btn_close)
         self.setLayout(self.v_layout)
 
